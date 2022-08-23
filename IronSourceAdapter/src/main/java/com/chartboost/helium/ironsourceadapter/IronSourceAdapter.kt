@@ -10,6 +10,7 @@ import com.ironsource.mediationsdk.logger.IronSourceError
 import com.ironsource.mediationsdk.sdk.ISDemandOnlyInterstitialListener
 import com.ironsource.mediationsdk.sdk.ISDemandOnlyRewardedVideoListener
 import com.ironsource.mediationsdk.utils.IronSourceUtils
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -28,6 +29,16 @@ class IronSourceAdapter : PartnerAdapter {
          */
         private val TAG = "[${this::class.java.simpleName}]"
     }
+
+    /**
+     * Lambda to be called for a successful ironSource ad show.
+     */
+    private var onShowSuccess: () -> Unit = {}
+
+    /**
+     * Lambda to be called for a failed ironSource ad show.
+     */
+    private var onShowFailure: () -> Unit = {}
 
     /**
      * Indicate whether GDPR currently applies to the user.
@@ -287,6 +298,7 @@ class IronSourceAdapter : PartnerAdapter {
                 }
 
                 override fun onInterstitialAdOpened(placementName: String) {
+                    onShowSuccess()
                 }
 
                 override fun onInterstitialAdClosed(placementName: String) {
@@ -311,6 +323,7 @@ class IronSourceAdapter : PartnerAdapter {
                         "$TAG ironSource failed to show an interstitial ad for placement " +
                                 "$placementName. Error code: ${ironSourceError.errorCode}"
                     )
+                    onShowFailure()
                 }
 
                 override fun onInterstitialAdClicked(placementName: String) {
@@ -382,6 +395,7 @@ class IronSourceAdapter : PartnerAdapter {
                 }
 
                 override fun onRewardedVideoAdOpened(placementName: String) {
+                    onShowSuccess()
                 }
 
                 override fun onRewardedVideoAdClosed(placementName: String) {
@@ -405,6 +419,7 @@ class IronSourceAdapter : PartnerAdapter {
                         "$TAG ironSource failed to show a rewarded video ad for placement " +
                                 "$placementName. Error code: ${ironSourceError.errorCode}"
                     )
+                    onShowFailure()
                 }
 
                 override fun onRewardedVideoAdClicked(placementName: String) {
@@ -447,10 +462,23 @@ class IronSourceAdapter : PartnerAdapter {
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
-    private fun showInterstitialAd(partnerAd: PartnerAd): Result<PartnerAd> {
+    private suspend fun showInterstitialAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return if (readyToShow(partnerAd.request.format, partnerAd.request.partnerPlacement)) {
-            IronSource.showISDemandOnlyInterstitial(partnerAd.request.partnerPlacement)
-            Result.success(partnerAd)
+            return suspendCancellableCoroutine { continuation ->
+                onShowSuccess = {
+                    continuation.resume(Result.success(partnerAd))
+                }
+
+                onShowFailure = {
+                    LogController.e(
+                        "$TAG Failed to show an ironSource interstitial ad for placement " +
+                                partnerAd.request.partnerPlacement
+                    )
+                    continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
+                }
+
+                IronSource.showISDemandOnlyInterstitial(partnerAd.request.partnerPlacement)
+            }
         } else {
             LogController.e(
                 "$TAG ironSource is trying to show an interstitial ad that isn't ready: " +
@@ -467,10 +495,23 @@ class IronSourceAdapter : PartnerAdapter {
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
-    private fun showRewardedAd(partnerAd: PartnerAd): Result<PartnerAd> {
+    private suspend fun showRewardedAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return if (readyToShow(partnerAd.request.format, partnerAd.request.partnerPlacement)) {
-            IronSource.showISDemandOnlyRewardedVideo(partnerAd.request.partnerPlacement)
-            Result.success(partnerAd)
+            return suspendCancellableCoroutine { continuation ->
+                onShowSuccess = {
+                    continuation.resume(Result.success(partnerAd))
+                }
+
+                onShowFailure = {
+                    LogController.e(
+                        "$TAG Failed to show an ironSource rewarded ad for placement " +
+                                partnerAd.request.partnerPlacement
+                    )
+                    continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
+                }
+
+                IronSource.showISDemandOnlyRewardedVideo(partnerAd.request.partnerPlacement)
+            }
         } else {
             LogController.e(
                 "$TAG ironSource is trying to show a rewarded ad that isn't ready: " +

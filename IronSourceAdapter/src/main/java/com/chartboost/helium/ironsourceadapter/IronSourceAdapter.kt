@@ -41,24 +41,14 @@ class IronSourceAdapter : PartnerAdapter {
     private var onShowFailure: () -> Unit = {}
 
     /**
+     * Router that handles instance to singleton communication with ironSource.
+     */
+    private var router: IronSourceRouter = IronSourceRouter(this)
+
+    /**
      * Indicate whether GDPR currently applies to the user.
      */
     private var gdprApplies = false
-
-    /**
-     * A map of Helium's listeners for the corresponding Helium placements.
-     */
-    private var listeners = mutableMapOf<String, PartnerAdListener>()
-
-    /**
-     * The currently active Helium placement. Determined by the current show call.
-     */
-    private var activeHeliumPlacement: String? = null
-
-    /**
-     * The currently active Helium [AdLoadRequest] instance. Determined by the current show call.
-     */
-    private var activeHeliumLoadRequest: AdLoadRequest? = null
 
     /**
      * Get the ironSource SDK version.
@@ -108,6 +98,11 @@ class IronSourceAdapter : PartnerAdapter {
                 AD_UNIT.INTERSTITIAL,
                 AD_UNIT.REWARDED_VIDEO
             )
+
+            // This router is required to forward the singleton callbacks to the instance ones.
+            IronSource.setISDemandOnlyInterstitialListener(router)
+            IronSource.setISDemandOnlyRewardedVideoListener(router)
+
             Result.success(LogController.i("$TAG ironSource successfully initialized"))
         } ?: run {
             LogController.e("$TAG ironSource failed to initialize. Missing the app key.")
@@ -220,12 +215,6 @@ class IronSourceAdapter : PartnerAdapter {
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
-        // Since more than 1 creatives could have been cached prior to showing one, we need to know
-        // the currently active Helium placement and AdLoadRequest instance in order to look up the
-        // correct Helium listener for ad event notification purposes.
-        activeHeliumPlacement = partnerAd.request.heliumPlacement
-        activeHeliumLoadRequest = partnerAd.request
-
         return when (partnerAd.request.format) {
             AdFormat.INTERSTITIAL -> showInterstitialAd(partnerAd)
             AdFormat.REWARDED -> showRewardedAd(partnerAd)
@@ -247,9 +236,7 @@ class IronSourceAdapter : PartnerAdapter {
      * @return Result.success(PartnerAd)
      */
     override suspend fun invalidate(partnerAd: PartnerAd): Result<PartnerAd> {
-        activeHeliumPlacement = null
-        activeHeliumLoadRequest = null
-        listeners.clear()
+        // There isn't a way to clear an ironSource ad, so this just returns success.
 
         return Result.success(partnerAd)
     }
@@ -267,80 +254,74 @@ class IronSourceAdapter : PartnerAdapter {
         listener: PartnerAdListener
     ): Result<PartnerAd> {
         return suspendCoroutine { continuation ->
-            IronSource.setISDemandOnlyInterstitialListener(object :
+            val ironSourceInterstitialListener = object :
                 ISDemandOnlyInterstitialListener {
-                override fun onInterstitialAdReady(placementName: String) {
-                    // Make sure the loaded ad is for the correct placement.
-                    if (IronSource.isISDemandOnlyInterstitialReady(request.partnerPlacement)) {
-                        listeners[request.heliumPlacement] = listener
-
-                        continuation.resume(
-                            Result.success(
-                                PartnerAd(ad = null, details = emptyMap(), request = request)
+                override fun onInterstitialAdReady(partnerPlacement: String) {
+                    continuation.resume(
+                        Result.success(
+                            PartnerAd(
+                                // This returns just the partner placement since we don't have
+                                // access to the actual ad.
+                                ad = partnerPlacement,
+                                details = emptyMap(),
+                                request = request
                             )
                         )
-                    } else {
-                        LogController.e("$TAG ironSource loaded an interstitial ad but for a different placement.")
-                        continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
-                    }
+                    )
                 }
 
                 override fun onInterstitialAdLoadFailed(
-                    placementName: String,
+                    partnerPlacement: String,
                     ironSourceError: IronSourceError
                 ) {
                     LogController.e(
                         "$TAG ironSource failed to load an interstitial ad for placement " +
-                                "$placementName. Error code: ${ironSourceError.errorCode}"
+                                "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
 
                     continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
                 }
 
-                override fun onInterstitialAdOpened(placementName: String) {
-                    onShowSuccess()
+                override fun onInterstitialAdOpened(partnerPlacement: String) {
+                    // Show success lambda handled in the router
                 }
 
-                override fun onInterstitialAdClosed(placementName: String) {
-                    val activeListener = listeners.remove(activeHeliumPlacement)
-                    activeListener?.onPartnerAdDismissed(
+                override fun onInterstitialAdClosed(partnerPlacement: String) {
+                    listener.onPartnerAdDismissed(
                         PartnerAd(
-                            ad = null,
+                            ad = partnerPlacement,
                             details = emptyMap(),
-                            request = activeHeliumLoadRequest ?: request
+                            request = request
                         ), null
-                    ) ?: LogController.e(
-                        "$TAG Unable to fire onPartnerAdDismissed for ironSource " +
-                                "adapter. Listener is null."
                     )
                 }
 
                 override fun onInterstitialAdShowFailed(
-                    placementName: String,
+                    partnerPlacement: String,
                     ironSourceError: IronSourceError
                 ) {
                     LogController.e(
                         "$TAG ironSource failed to show an interstitial ad for placement " +
-                                "$placementName. Error code: ${ironSourceError.errorCode}"
+                                "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
-                    onShowFailure()
+                    // Show failure lambda handled in the router
                 }
 
-                override fun onInterstitialAdClicked(placementName: String) {
-                    val activeListener = listeners[activeHeliumPlacement]
-                    activeListener?.onPartnerAdClicked(
+                override fun onInterstitialAdClicked(partnerPlacement: String) {
+                    listener.onPartnerAdClicked(
                         PartnerAd(
-                            ad = null,
+                            ad = partnerPlacement,
                             details = emptyMap(),
-                            request = activeHeliumLoadRequest ?: request
+                            request = request
                         )
-                    ) ?: LogController.e(
-                        "$TAG Unable to fire onPartnerAdClicked for ironSource " +
-                                "adapter. Listener is null."
                     )
                 }
-            })
+            }
 
+            router.subscribeInterstitialListener(
+                request.partnerPlacement,
+                ironSourceInterstitialListener
+            )
             IronSource.loadISDemandOnlyInterstitial(activity, request.partnerPlacement)
         }
     }
@@ -358,99 +339,85 @@ class IronSourceAdapter : PartnerAdapter {
         listener: PartnerAdListener
     ): Result<PartnerAd> {
         return suspendCoroutine { continuation ->
-            IronSource.setISDemandOnlyRewardedVideoListener(object :
+            val ironSourceRewardedVideoListener = object :
                 ISDemandOnlyRewardedVideoListener {
-                override fun onRewardedVideoAdLoadSuccess(placementName: String) {
-                    // Make sure the loaded ad is for the correct placement.
-                    if (IronSource.isISDemandOnlyRewardedVideoAvailable(request.partnerPlacement)) {
-                        listeners[request.heliumPlacement] = listener
-
-                        continuation.resume(
-                            Result.success(
-                                PartnerAd(
-                                    ad = null,
-                                    details = emptyMap(),
-                                    request = request
-                                )
+                override fun onRewardedVideoAdLoadSuccess(partnerPlacement: String) {
+                    continuation.resume(
+                        Result.success(
+                            PartnerAd(
+                                // This returns just the partner placement since we don't have
+                                // access to the actual ad.
+                                ad = partnerPlacement,
+                                details = emptyMap(),
+                                request = request
                             )
                         )
-                    } else {
-                        LogController.e(
-                            "$TAG ironSource loaded a rewarded ad but for a different placement. " +
-                                    "Failing ad request."
-                        )
-                        continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
-                    }
+                    )
                 }
 
                 override fun onRewardedVideoAdLoadFailed(
-                    placementName: String,
+                    partnerPlacement: String,
                     ironSourceError: IronSourceError
                 ) {
                     LogController.e(
                         "$TAG ironSource failed to load a rewarded video ad for placement " +
-                                "$placementName. Error code: ${ironSourceError.errorCode}"
+                                "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
                     continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
                 }
 
-                override fun onRewardedVideoAdOpened(placementName: String) {
-                    onShowSuccess()
+                override fun onRewardedVideoAdOpened(partnerPlacement: String) {
+                    // Show success lambda handled in the router
                 }
 
-                override fun onRewardedVideoAdClosed(placementName: String) {
-                    val activeListener = listeners.remove(activeHeliumPlacement)
-                    activeListener?.onPartnerAdDismissed(
+                override fun onRewardedVideoAdClosed(partnerPlacement: String) {
+                    listener.onPartnerAdDismissed(
                         PartnerAd(
-                            ad = null,
+                            ad = partnerPlacement,
                             details = emptyMap(),
-                            request = activeHeliumLoadRequest ?: request
+                            request = request
                         ), null
-                    ) ?: LogController.e(
-                        "$TAG Unable to fire onPartnerAdDismissed for ironSource adapter. Listener is null."
                     )
                 }
 
                 override fun onRewardedVideoAdShowFailed(
-                    placementName: String,
+                    partnerPlacement: String,
                     ironSourceError: IronSourceError
                 ) {
                     LogController.e(
                         "$TAG ironSource failed to show a rewarded video ad for placement " +
-                                "$placementName. Error code: ${ironSourceError.errorCode}"
+                                "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
-                    onShowFailure()
+                    // Show failure lambda handled in the router
                 }
 
-                override fun onRewardedVideoAdClicked(placementName: String) {
-                    val activeListener = listeners[activeHeliumPlacement]
-                    activeListener?.onPartnerAdClicked(
+                override fun onRewardedVideoAdClicked(partnerPlacement: String) {
+                    listener.onPartnerAdClicked(
                         PartnerAd(
-                            ad = null,
+                            ad = partnerPlacement,
                             details = emptyMap(),
-                            request = activeHeliumLoadRequest ?: request
+                            request = request
                         )
-                    ) ?: LogController.e(
-                        "$TAG Unable to fire onPartnerAdClicked for ironSource adapter. Listener is null."
                     )
                 }
 
-                override fun onRewardedVideoAdRewarded(placementName: String) {
-                    val activeListener = listeners[activeHeliumPlacement]
-                    activeListener?.onPartnerAdRewarded(
+                override fun onRewardedVideoAdRewarded(partnerPlacement: String) {
+                    listener.onPartnerAdRewarded(
                         PartnerAd(
-                            ad = null,
+                            ad = partnerPlacement,
                             details = emptyMap(),
-                            request = activeHeliumLoadRequest ?: request
-                        ), Reward(
-                            IronSource.getRewardedVideoPlacementInfo(placementName).rewardAmount, ""
-                        )
-                    ) ?: LogController.e(
-                        "$TAG Unable to fire onPartnerAdRewarded for ironSource adapter. Listener is null."
+                            request = request
+                        ),
+                        IronSource.getRewardedVideoPlacementInfo(partnerPlacement)
+                            ?.let { Reward(it.rewardAmount, it.rewardName) } ?: Reward(0, "")
                     )
                 }
-            })
+            }
 
+            router.subscribeRewardedListener(
+                request.partnerPlacement,
+                ironSourceRewardedVideoListener
+            )
             IronSource.loadISDemandOnlyRewardedVideo(activity, request.partnerPlacement)
         }
     }
@@ -538,6 +505,137 @@ class IronSourceAdapter : PartnerAdapter {
                 placement
             )
             else -> false
+        }
+    }
+
+    /**
+     * Since ironSource has a singleton listener, Helium needs a router to sort the callbacks that
+     * result from each load/show attempt.
+     */
+    private class IronSourceRouter(val adapter: IronSourceAdapter) :
+        ISDemandOnlyInterstitialListener,
+        ISDemandOnlyRewardedVideoListener {
+
+        /**
+         * Map of ironSource placements to interstitial listeners.
+         */
+        val interstitialListenersMap: MutableMap<String, ISDemandOnlyInterstitialListener> =
+            mutableMapOf()
+
+        /**
+         * Map of ironSource placements to rewarded video listeners.
+         */
+        val rewardedListenersMap: MutableMap<String, ISDemandOnlyRewardedVideoListener> =
+            mutableMapOf()
+
+        /**
+         * Adds an interstitial listener to this router. These are automatically removed on ad
+         * load failure, show failure, and close.
+         */
+        fun subscribeInterstitialListener(
+            partnerPlacement: String,
+            listener: ISDemandOnlyInterstitialListener
+        ) {
+            interstitialListenersMap[partnerPlacement] = listener
+        }
+
+        /**
+         * Adds a rewarded video listener to this router. These are automatically removed on ad
+         * load failure, show failure, and close.
+         */
+        fun subscribeRewardedListener(
+            partnerPlacement: String,
+            listener: ISDemandOnlyRewardedVideoListener
+        ) {
+            rewardedListenersMap[partnerPlacement] = listener
+        }
+
+        override fun onInterstitialAdReady(partnerPlacement: String) {
+            interstitialListenersMap[partnerPlacement]?.onInterstitialAdReady(partnerPlacement)
+                ?: LogController.w("Lost ironSource listener on interstitial ad load success.")
+        }
+
+        override fun onInterstitialAdLoadFailed(
+            partnerPlacement: String,
+            ironSourceError: IronSourceError
+        ) {
+            interstitialListenersMap.remove(partnerPlacement)
+                ?.onInterstitialAdLoadFailed(partnerPlacement, ironSourceError)
+                ?: LogController.w("Lost ironSource listener on interstitial ad load failed with error $ironSourceError.")
+        }
+
+        override fun onInterstitialAdOpened(partnerPlacement: String) {
+            interstitialListenersMap[partnerPlacement]?.onInterstitialAdOpened(partnerPlacement)
+                ?: LogController.w("Lost ironSource listener on interstitial ad opened.")
+            adapter.onShowSuccess()
+        }
+
+        override fun onInterstitialAdClosed(partnerPlacement: String) {
+            interstitialListenersMap.remove(partnerPlacement)
+                ?.onInterstitialAdClosed(partnerPlacement)
+                ?: LogController.w("Lost ironSource listener on interstitial ad closed.")
+        }
+
+        override fun onInterstitialAdShowFailed(
+            partnerPlacement: String,
+            ironSourceError: IronSourceError
+        ) {
+            interstitialListenersMap.remove(partnerPlacement)
+                ?.onInterstitialAdShowFailed(partnerPlacement, ironSourceError)
+                ?: LogController.w("Lost ironSource listener on interstitial ad show failed with error $ironSourceError.")
+            adapter.onShowFailure()
+        }
+
+        override fun onInterstitialAdClicked(partnerPlacement: String) {
+            interstitialListenersMap[partnerPlacement]?.onInterstitialAdClicked(partnerPlacement)
+                ?: LogController.w("Lost ironSource listener on ad clicked.")
+        }
+
+        override fun onRewardedVideoAdLoadSuccess(partnerPlacement: String) {
+            rewardedListenersMap[partnerPlacement]?.onRewardedVideoAdLoadSuccess(partnerPlacement)
+                ?: LogController.w("Lost ironSource listener on rewarded ad load success.")
+        }
+
+        override fun onRewardedVideoAdLoadFailed(
+            partnerPlacement: String,
+            ironSourceError: IronSourceError
+        ) {
+            rewardedListenersMap.remove(partnerPlacement)
+                ?.onRewardedVideoAdLoadFailed(partnerPlacement, ironSourceError) ?: LogController.w(
+                "Lost ironSource listener on rewarded ad load failed."
+            )
+        }
+
+        override fun onRewardedVideoAdOpened(partnerPlacement: String) {
+            rewardedListenersMap[partnerPlacement]?.onRewardedVideoAdLoadSuccess(partnerPlacement)
+                ?: LogController.w("Lost ironSource listener on rewarded ad opened.")
+            adapter.onShowSuccess()
+        }
+
+        override fun onRewardedVideoAdClosed(partnerPlacement: String) {
+            rewardedListenersMap.remove(partnerPlacement)?.onRewardedVideoAdClosed(partnerPlacement)
+                ?: LogController.w("Lost ironSource listener on rewarded ad closed.")
+        }
+
+        override fun onRewardedVideoAdShowFailed(
+            partnerPlacement: String,
+            ironSourceError: IronSourceError
+        ) {
+            rewardedListenersMap.remove(partnerPlacement)
+                ?.onRewardedVideoAdShowFailed(partnerPlacement, ironSourceError) ?: LogController.w(
+                "Lost ironSource listener on rewarded ad show failed."
+            )
+            adapter.onShowFailure()
+        }
+
+        override fun onRewardedVideoAdClicked(partnerPlacement: String) {
+            rewardedListenersMap[partnerPlacement]?.onRewardedVideoAdClicked(partnerPlacement)
+                ?: LogController.w("Lost ironSource listener on rewarded ad clicked.")
+        }
+
+        override fun onRewardedVideoAdRewarded(partnerPlacement: String) {
+            rewardedListenersMap[partnerPlacement]?.onRewardedVideoAdRewarded(partnerPlacement)
+                ?: LogController.w("Lost ironSource listener on rewarded ad rewarded.")
         }
     }
 }

@@ -1,2 +1,2 @@
 # helium-android-adapter-ironsource
-Helium Android SDK IronSource adapter
+Helium Android SDK ironSource adapter

@@ -27,7 +27,7 @@ class IronSourceAdapter : PartnerAdapter {
         /**
          * The tag used for log messages.
          */
-        private val TAG = "[${this::class.java.simpleName}]"
+        private val TAG = "[${IronSourceAdapter::class.java.simpleName}]"
     }
 
     /**

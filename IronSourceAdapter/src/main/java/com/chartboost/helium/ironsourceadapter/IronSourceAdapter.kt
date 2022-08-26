@@ -2,7 +2,6 @@ package com.chartboost.helium.ironsourceadapter
 
 import android.app.Activity
 import android.content.Context
-import android.util.Log
 import com.chartboost.heliumsdk.domain.*
 import com.chartboost.heliumsdk.utils.LogController
 import com.ironsource.mediationsdk.IronSource
@@ -339,12 +338,10 @@ class IronSourceAdapter : PartnerAdapter {
         request: AdLoadRequest,
         listener: PartnerAdListener
     ): Result<PartnerAd> {
-        Log.e("delete me", "load attempted ????? ${request.partnerPlacement}")
         return suspendCoroutine { continuation ->
             val ironSourceRewardedVideoListener = object :
                 ISDemandOnlyRewardedVideoListener {
                 override fun onRewardedVideoAdLoadSuccess(partnerPlacement: String) {
-                    Log.e("delete me", "$partnerPlacement load success")
                     continuation.resume(
                         Result.success(
                             PartnerAd(

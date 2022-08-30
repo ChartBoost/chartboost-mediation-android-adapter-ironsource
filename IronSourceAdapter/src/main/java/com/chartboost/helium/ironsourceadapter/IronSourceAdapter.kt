@@ -23,11 +23,6 @@ class IronSourceAdapter : PartnerAdapter {
          * Key for parsing the ironSource app key.
          */
         private const val APP_KEY_KEY = "app_key"
-
-        /**
-         * The tag used for log messages.
-         */
-        private val TAG = "[${IronSourceAdapter::class.java.simpleName}]"
     }
 
     /**
@@ -103,9 +98,9 @@ class IronSourceAdapter : PartnerAdapter {
             IronSource.setISDemandOnlyInterstitialListener(router)
             IronSource.setISDemandOnlyRewardedVideoListener(router)
 
-            Result.success(LogController.i("$TAG ironSource successfully initialized"))
+            Result.success(LogController.i("ironSource successfully initialized"))
         } ?: run {
-            LogController.e("$TAG ironSource failed to initialize. Missing the app key.")
+            LogController.e("ironSource failed to initialize. Missing the app key.")
             Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
         }
     }
@@ -194,14 +189,14 @@ class IronSourceAdapter : PartnerAdapter {
                 }
                 else -> {
                     LogController.e(
-                        "$TAG ironSource is trying to load an unsupported ad format: " +
+                        "ironSource is trying to load an unsupported ad format: " +
                                 "${request.format}"
                     )
                     Result.failure(HeliumAdException(HeliumErrorCode.AD_FORMAT_NOT_SUPPORTED))
                 }
             }
         } ?: run {
-            LogController.e("$TAG ironSource failed to load an ad. Activity context is required.")
+            LogController.e("ironSource failed to load an ad. Activity context is required.")
             Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
     }
@@ -220,7 +215,7 @@ class IronSourceAdapter : PartnerAdapter {
             AdFormat.REWARDED -> showRewardedAd(partnerAd)
             else -> {
                 LogController.e(
-                    "$TAG ironSource is trying to show an unsupported ad format: " +
+                    "ironSource is trying to show an unsupported ad format: " +
                             "${partnerAd.request.format}"
                 )
                 Result.failure(HeliumAdException(HeliumErrorCode.AD_FORMAT_NOT_SUPPORTED))
@@ -275,7 +270,7 @@ class IronSourceAdapter : PartnerAdapter {
                     ironSourceError: IronSourceError
                 ) {
                     LogController.e(
-                        "$TAG ironSource failed to load an interstitial ad for placement " +
+                        "ironSource failed to load an interstitial ad for placement " +
                                 "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
 
@@ -301,7 +296,7 @@ class IronSourceAdapter : PartnerAdapter {
                     ironSourceError: IronSourceError
                 ) {
                     LogController.e(
-                        "$TAG ironSource failed to show an interstitial ad for placement " +
+                        "ironSource failed to show an interstitial ad for placement " +
                                 "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
                     // Show failure lambda handled in the router
@@ -360,7 +355,7 @@ class IronSourceAdapter : PartnerAdapter {
                     ironSourceError: IronSourceError
                 ) {
                     LogController.e(
-                        "$TAG ironSource failed to load a rewarded video ad for placement " +
+                        "ironSource failed to load a rewarded video ad for placement " +
                                 "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
                     continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
@@ -385,7 +380,7 @@ class IronSourceAdapter : PartnerAdapter {
                     ironSourceError: IronSourceError
                 ) {
                     LogController.e(
-                        "$TAG ironSource failed to show a rewarded video ad for placement " +
+                        "ironSource failed to show a rewarded video ad for placement " +
                                 "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
                     // Show failure lambda handled in the router
@@ -438,7 +433,7 @@ class IronSourceAdapter : PartnerAdapter {
 
                 onShowFailure = {
                     LogController.e(
-                        "$TAG Failed to show an ironSource interstitial ad for placement " +
+                        "Failed to show an ironSource interstitial ad for placement " +
                                 partnerAd.request.partnerPlacement
                     )
                     continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
@@ -448,7 +443,7 @@ class IronSourceAdapter : PartnerAdapter {
             }
         } else {
             LogController.e(
-                "$TAG ironSource is trying to show an interstitial ad that isn't ready: " +
+                "ironSource is trying to show an interstitial ad that isn't ready: " +
                         partnerAd.request.partnerPlacement
             )
             Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
@@ -471,7 +466,7 @@ class IronSourceAdapter : PartnerAdapter {
 
                 onShowFailure = {
                     LogController.e(
-                        "$TAG Failed to show an ironSource rewarded ad for placement " +
+                        "Failed to show an ironSource rewarded ad for placement " +
                                 partnerAd.request.partnerPlacement
                     )
                     continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
@@ -481,7 +476,7 @@ class IronSourceAdapter : PartnerAdapter {
             }
         } else {
             LogController.e(
-                "$TAG ironSource is trying to show a rewarded ad that isn't ready: " +
+                "ironSource is trying to show a rewarded ad that isn't ready: " +
                         partnerAd.request.partnerPlacement
             )
             Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))

@@ -3,7 +3,10 @@ package com.chartboost.helium.ironsourceadapter
 import android.app.Activity
 import android.content.Context
 import com.chartboost.heliumsdk.domain.*
-import com.chartboost.heliumsdk.utils.LogController
+import com.chartboost.heliumsdk.utils.PartnerLogController
+import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterFailureEvents.*
+import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterSuccessEvents.*
 import com.ironsource.mediationsdk.IronSource
 import com.ironsource.mediationsdk.IronSource.AD_UNIT
 import com.ironsource.mediationsdk.logger.IronSourceError
@@ -83,6 +86,8 @@ class IronSourceAdapter : PartnerAdapter {
         context: Context,
         partnerConfiguration: PartnerConfiguration
     ): Result<Unit> {
+        PartnerLogController.log(SETUP_STARTED)
+
         return partnerConfiguration.credentials[APP_KEY_KEY]?.let { appKey ->
             IronSource.setMediationType("Helium $adapterVersion")
             // IronSource leaks this Activity via ContextProvider, but it only ever leaks one
@@ -98,9 +103,9 @@ class IronSourceAdapter : PartnerAdapter {
             IronSource.setISDemandOnlyInterstitialListener(router)
             IronSource.setISDemandOnlyRewardedVideoListener(router)
 
-            Result.success(LogController.i("ironSource successfully initialized"))
+            Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
         } ?: run {
-            LogController.e("ironSource failed to initialize. Missing the app key.")
+            PartnerLogController.log(SETUP_FAILED, "Missing the app key.")
             Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
         }
     }
@@ -163,22 +168,28 @@ class IronSourceAdapter : PartnerAdapter {
     override suspend fun fetchBidderInformation(
         context: Context,
         request: PreBidRequest
-    ) = emptyMap<String, String>()
+    ): Map<String, String> {
+        PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
+        PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
+        return emptyMap()
+    }
 
     /**
      * Attempt to load an ironSource ad.
      *
      * @param context The current [Context].
-     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
     override suspend fun load(
         context: Context,
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener
     ): Result<PartnerAd> {
+        PartnerLogController.log(LOAD_STARTED)
+
         return (context as? Activity)?.let { activity ->
             when (request.format) {
                 AdFormat.INTERSTITIAL -> {
@@ -188,15 +199,12 @@ class IronSourceAdapter : PartnerAdapter {
                     loadRewardedAd(activity, request, partnerAdListener)
                 }
                 else -> {
-                    LogController.e(
-                        "ironSource is trying to load an unsupported ad format: " +
-                                "${request.format}"
-                    )
+                    PartnerLogController.log(LOAD_FAILED)
                     Result.failure(HeliumAdException(HeliumErrorCode.AD_FORMAT_NOT_SUPPORTED))
                 }
             }
         } ?: run {
-            LogController.e("ironSource failed to load an ad. Activity context is required.")
+            PartnerLogController.log(LOAD_FAILED, "Activity context is required.")
             Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
     }
@@ -210,14 +218,13 @@ class IronSourceAdapter : PartnerAdapter {
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
+        PartnerLogController.log(SHOW_STARTED)
+
         return when (partnerAd.request.format) {
             AdFormat.INTERSTITIAL -> showInterstitialAd(partnerAd)
             AdFormat.REWARDED -> showRewardedAd(partnerAd)
             else -> {
-                LogController.e(
-                    "ironSource is trying to show an unsupported ad format: " +
-                            "${partnerAd.request.format}"
-                )
+                PartnerLogController.log(SHOW_FAILED)
                 Result.failure(HeliumAdException(HeliumErrorCode.AD_FORMAT_NOT_SUPPORTED))
             }
         }
@@ -232,7 +239,8 @@ class IronSourceAdapter : PartnerAdapter {
      */
     override suspend fun invalidate(partnerAd: PartnerAd): Result<PartnerAd> {
         // There isn't a way to clear an ironSource ad, so this just returns success.
-
+        PartnerLogController.log(INVALIDATE_STARTED)
+        PartnerLogController.log(INVALIDATE_SUCCEEDED)
         return Result.success(partnerAd)
     }
 
@@ -240,18 +248,19 @@ class IronSourceAdapter : PartnerAdapter {
      * Attempt to load an ironSource interstitial ad.
      *
      * @param activity The current [Activity].
-     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param listener A [PartnerAdListener] to notify Helium of ad events.
      */
     private suspend fun loadInterstitialAd(
         activity: Activity,
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         listener: PartnerAdListener
     ): Result<PartnerAd> {
         return suspendCoroutine { continuation ->
             val ironSourceInterstitialListener = object :
                 ISDemandOnlyInterstitialListener {
                 override fun onInterstitialAdReady(partnerPlacement: String) {
+                    PartnerLogController.log(LOAD_SUCCEEDED)
                     continuation.resume(
                         Result.success(
                             PartnerAd(
@@ -269,9 +278,9 @@ class IronSourceAdapter : PartnerAdapter {
                     partnerPlacement: String,
                     ironSourceError: IronSourceError
                 ) {
-                    LogController.e(
-                        "ironSource failed to load an interstitial ad for placement " +
-                                "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
+                    PartnerLogController.log(
+                        LOAD_FAILED,
+                        "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
 
                     continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
@@ -282,6 +291,7 @@ class IronSourceAdapter : PartnerAdapter {
                 }
 
                 override fun onInterstitialAdClosed(partnerPlacement: String) {
+                    PartnerLogController.log(DID_DISMISS)
                     listener.onPartnerAdDismissed(
                         PartnerAd(
                             ad = partnerPlacement,
@@ -295,14 +305,15 @@ class IronSourceAdapter : PartnerAdapter {
                     partnerPlacement: String,
                     ironSourceError: IronSourceError
                 ) {
-                    LogController.e(
-                        "ironSource failed to show an interstitial ad for placement " +
-                                "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
+                    PartnerLogController.log(
+                        SHOW_FAILED,
+                        "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
                     // Show failure lambda handled in the router
                 }
 
                 override fun onInterstitialAdClicked(partnerPlacement: String) {
+                    PartnerLogController.log(DID_CLICK)
                     listener.onPartnerAdClicked(
                         PartnerAd(
                             ad = partnerPlacement,
@@ -325,18 +336,19 @@ class IronSourceAdapter : PartnerAdapter {
      * Attempt to load an ironSource rewarded ad.
      *
      * @param activity The current [Activity].
-     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param listener A [PartnerAdListener] to notify Helium of ad events.
      */
     private suspend fun loadRewardedAd(
         activity: Activity,
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         listener: PartnerAdListener
     ): Result<PartnerAd> {
         return suspendCoroutine { continuation ->
             val ironSourceRewardedVideoListener = object :
                 ISDemandOnlyRewardedVideoListener {
                 override fun onRewardedVideoAdLoadSuccess(partnerPlacement: String) {
+                    PartnerLogController.log(LOAD_SUCCEEDED)
                     continuation.resume(
                         Result.success(
                             PartnerAd(
@@ -354,9 +366,9 @@ class IronSourceAdapter : PartnerAdapter {
                     partnerPlacement: String,
                     ironSourceError: IronSourceError
                 ) {
-                    LogController.e(
-                        "ironSource failed to load a rewarded video ad for placement " +
-                                "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
+                    PartnerLogController.log(
+                        LOAD_FAILED,
+                        "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
                     continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
                 }
@@ -366,6 +378,7 @@ class IronSourceAdapter : PartnerAdapter {
                 }
 
                 override fun onRewardedVideoAdClosed(partnerPlacement: String) {
+                    PartnerLogController.log(DID_DISMISS)
                     listener.onPartnerAdDismissed(
                         PartnerAd(
                             ad = partnerPlacement,
@@ -379,14 +392,15 @@ class IronSourceAdapter : PartnerAdapter {
                     partnerPlacement: String,
                     ironSourceError: IronSourceError
                 ) {
-                    LogController.e(
-                        "ironSource failed to show a rewarded video ad for placement " +
-                                "$partnerPlacement. Error code: ${ironSourceError.errorCode}"
+                    PartnerLogController.log(
+                        SHOW_FAILED,
+                        "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
                     // Show failure lambda handled in the router
                 }
 
                 override fun onRewardedVideoAdClicked(partnerPlacement: String) {
+                    PartnerLogController.log(DID_CLICK)
                     listener.onPartnerAdClicked(
                         PartnerAd(
                             ad = partnerPlacement,
@@ -397,6 +411,7 @@ class IronSourceAdapter : PartnerAdapter {
                 }
 
                 override fun onRewardedVideoAdRewarded(partnerPlacement: String) {
+                    PartnerLogController.log(DID_REWARD)
                     listener.onPartnerAdRewarded(
                         PartnerAd(
                             ad = partnerPlacement,
@@ -428,24 +443,23 @@ class IronSourceAdapter : PartnerAdapter {
         return if (readyToShow(partnerAd.request.format, partnerAd.request.partnerPlacement)) {
             return suspendCancellableCoroutine { continuation ->
                 onShowSuccess = {
+                    PartnerLogController.log(SHOW_SUCCEEDED)
                     continuation.resume(Result.success(partnerAd))
                 }
 
                 onShowFailure = {
-                    LogController.e(
-                        "Failed to show an ironSource interstitial ad for placement " +
-                                partnerAd.request.partnerPlacement
+                    PartnerLogController.log(
+                        SHOW_FAILED,
+                        "Placement ${partnerAd.request.partnerPlacement}"
                     )
+
                     continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
                 }
 
                 IronSource.showISDemandOnlyInterstitial(partnerAd.request.partnerPlacement)
             }
         } else {
-            LogController.e(
-                "ironSource is trying to show an interstitial ad that isn't ready: " +
-                        partnerAd.request.partnerPlacement
-            )
+            PartnerLogController.log(SHOW_FAILED, "Ad isn't ready.")
             Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
         }
     }
@@ -461,13 +475,14 @@ class IronSourceAdapter : PartnerAdapter {
         return if (readyToShow(partnerAd.request.format, partnerAd.request.partnerPlacement)) {
             return suspendCancellableCoroutine { continuation ->
                 onShowSuccess = {
+                    PartnerLogController.log(SHOW_SUCCEEDED)
                     continuation.resume(Result.success(partnerAd))
                 }
 
                 onShowFailure = {
-                    LogController.e(
-                        "Failed to show an ironSource rewarded ad for placement " +
-                                partnerAd.request.partnerPlacement
+                    PartnerLogController.log(
+                        SHOW_FAILED,
+                        "Placement ${partnerAd.request.partnerPlacement}"
                     )
                     continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
                 }
@@ -475,10 +490,7 @@ class IronSourceAdapter : PartnerAdapter {
                 IronSource.showISDemandOnlyRewardedVideo(partnerAd.request.partnerPlacement)
             }
         } else {
-            LogController.e(
-                "ironSource is trying to show a rewarded ad that isn't ready: " +
-                        partnerAd.request.partnerPlacement
-            )
+            PartnerLogController.log(SHOW_FAILED, "Ad isn't ready.")
             Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
         }
     }
@@ -547,7 +559,10 @@ class IronSourceAdapter : PartnerAdapter {
 
         override fun onInterstitialAdReady(partnerPlacement: String) {
             interstitialListenersMap[partnerPlacement]?.onInterstitialAdReady(partnerPlacement)
-                ?: LogController.w("Lost ironSource listener on interstitial ad load success.")
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on interstitial ad load success."
+                )
         }
 
         override fun onInterstitialAdLoadFailed(
@@ -556,19 +571,28 @@ class IronSourceAdapter : PartnerAdapter {
         ) {
             interstitialListenersMap.remove(partnerPlacement)
                 ?.onInterstitialAdLoadFailed(partnerPlacement, ironSourceError)
-                ?: LogController.w("Lost ironSource listener on interstitial ad load failed with error $ironSourceError.")
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on interstitial ad load failed with error $ironSourceError."
+                )
         }
 
         override fun onInterstitialAdOpened(partnerPlacement: String) {
             interstitialListenersMap[partnerPlacement]?.onInterstitialAdOpened(partnerPlacement)
-                ?: LogController.w("Lost ironSource listener on interstitial ad opened.")
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on interstitial ad opened."
+                )
             adapter.onShowSuccess()
         }
 
         override fun onInterstitialAdClosed(partnerPlacement: String) {
             interstitialListenersMap.remove(partnerPlacement)
                 ?.onInterstitialAdClosed(partnerPlacement)
-                ?: LogController.w("Lost ironSource listener on interstitial ad closed.")
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on interstitial ad closed."
+                )
         }
 
         override fun onInterstitialAdShowFailed(
@@ -577,18 +601,24 @@ class IronSourceAdapter : PartnerAdapter {
         ) {
             interstitialListenersMap.remove(partnerPlacement)
                 ?.onInterstitialAdShowFailed(partnerPlacement, ironSourceError)
-                ?: LogController.w("Lost ironSource listener on interstitial ad show failed with error $ironSourceError.")
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on interstitial ad show failed with error $ironSourceError."
+                )
             adapter.onShowFailure()
         }
 
         override fun onInterstitialAdClicked(partnerPlacement: String) {
             interstitialListenersMap[partnerPlacement]?.onInterstitialAdClicked(partnerPlacement)
-                ?: LogController.w("Lost ironSource listener on ad clicked.")
+                ?: PartnerLogController.log(CUSTOM, "Lost ironSource listener on ad clicked.")
         }
 
         override fun onRewardedVideoAdLoadSuccess(partnerPlacement: String) {
             rewardedListenersMap[partnerPlacement]?.onRewardedVideoAdLoadSuccess(partnerPlacement)
-                ?: LogController.w("Lost ironSource listener on rewarded ad load success.")
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on rewarded ad load success."
+                )
         }
 
         override fun onRewardedVideoAdLoadFailed(
@@ -596,20 +626,28 @@ class IronSourceAdapter : PartnerAdapter {
             ironSourceError: IronSourceError
         ) {
             rewardedListenersMap.remove(partnerPlacement)
-                ?.onRewardedVideoAdLoadFailed(partnerPlacement, ironSourceError) ?: LogController.w(
-                "Lost ironSource listener on rewarded ad load failed."
-            )
+                ?.onRewardedVideoAdLoadFailed(partnerPlacement, ironSourceError)
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on rewarded ad load failed."
+                )
         }
 
         override fun onRewardedVideoAdOpened(partnerPlacement: String) {
             rewardedListenersMap[partnerPlacement]?.onRewardedVideoAdOpened(partnerPlacement)
-                ?: LogController.w("Lost ironSource listener on rewarded ad opened.")
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on rewarded ad opened."
+                )
             adapter.onShowSuccess()
         }
 
         override fun onRewardedVideoAdClosed(partnerPlacement: String) {
             rewardedListenersMap.remove(partnerPlacement)?.onRewardedVideoAdClosed(partnerPlacement)
-                ?: LogController.w("Lost ironSource listener on rewarded ad closed.")
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on rewarded ad closed."
+                )
         }
 
         override fun onRewardedVideoAdShowFailed(
@@ -617,20 +655,28 @@ class IronSourceAdapter : PartnerAdapter {
             ironSourceError: IronSourceError
         ) {
             rewardedListenersMap.remove(partnerPlacement)
-                ?.onRewardedVideoAdShowFailed(partnerPlacement, ironSourceError) ?: LogController.w(
-                "Lost ironSource listener on rewarded ad show failed."
-            )
+                ?.onRewardedVideoAdShowFailed(partnerPlacement, ironSourceError)
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on rewarded ad show failed."
+                )
             adapter.onShowFailure()
         }
 
         override fun onRewardedVideoAdClicked(partnerPlacement: String) {
             rewardedListenersMap[partnerPlacement]?.onRewardedVideoAdClicked(partnerPlacement)
-                ?: LogController.w("Lost ironSource listener on rewarded ad clicked.")
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on rewarded ad clicked."
+                )
         }
 
         override fun onRewardedVideoAdRewarded(partnerPlacement: String) {
             rewardedListenersMap[partnerPlacement]?.onRewardedVideoAdRewarded(partnerPlacement)
-                ?: LogController.w("Lost ironSource listener on rewarded ad rewarded.")
+                ?: PartnerLogController.log(
+                    CUSTOM,
+                    "Lost ironSource listener on rewarded ad rewarded."
+                )
         }
     }
 }

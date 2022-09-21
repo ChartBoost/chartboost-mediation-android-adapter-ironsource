@@ -88,8 +88,8 @@ class IronSourceAdapter : PartnerAdapter {
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
-        return partnerConfiguration.credentials.optString(APP_KEY_KEY).takeIf { it.isNotEmpty() }
-            ?.let { appKey ->
+        return partnerConfiguration.credentials.optString(APP_KEY_KEY).trim()
+            .takeIf { it.isNotEmpty() }?.let { appKey ->
                 IronSource.setMediationType("Helium $adapterVersion")
                 // IronSource leaks this Activity via ContextProvider, but it only ever leaks one
                 // Activity at a time, so this is probably okay.

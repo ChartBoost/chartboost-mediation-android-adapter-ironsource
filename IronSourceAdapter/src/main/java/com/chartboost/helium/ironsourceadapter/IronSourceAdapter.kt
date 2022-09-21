@@ -88,23 +88,24 @@ class IronSourceAdapter : PartnerAdapter {
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
-        return partnerConfiguration.credentials[APP_KEY_KEY]?.let { appKey ->
-            IronSource.setMediationType("Helium $adapterVersion")
-            // IronSource leaks this Activity via ContextProvider, but it only ever leaks one
-            // Activity at a time, so this is probably okay.
-            IronSource.initISDemandOnly(
-                context,
-                appKey,
-                AD_UNIT.INTERSTITIAL,
-                AD_UNIT.REWARDED_VIDEO
-            )
+        return partnerConfiguration.credentials.optString(APP_KEY_KEY).takeIf { it.isNotEmpty() }
+            ?.let { appKey ->
+                IronSource.setMediationType("Helium $adapterVersion")
+                // IronSource leaks this Activity via ContextProvider, but it only ever leaks one
+                // Activity at a time, so this is probably okay.
+                IronSource.initISDemandOnly(
+                    context,
+                    appKey,
+                    AD_UNIT.INTERSTITIAL,
+                    AD_UNIT.REWARDED_VIDEO
+                )
 
-            // This router is required to forward the singleton callbacks to the instance ones.
-            IronSource.setISDemandOnlyInterstitialListener(router)
-            IronSource.setISDemandOnlyRewardedVideoListener(router)
+                // This router is required to forward the singleton callbacks to the instance ones.
+                IronSource.setISDemandOnlyInterstitialListener(router)
+                IronSource.setISDemandOnlyRewardedVideoListener(router)
 
-            Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
-        } ?: run {
+                Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
+            } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing the app key.")
             Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
         }

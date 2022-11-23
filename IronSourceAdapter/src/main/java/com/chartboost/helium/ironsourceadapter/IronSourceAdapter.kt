@@ -8,6 +8,7 @@ import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.
 import com.ironsource.mediationsdk.IronSource
 import com.ironsource.mediationsdk.IronSource.AD_UNIT
 import com.ironsource.mediationsdk.logger.IronSourceError
+import com.ironsource.mediationsdk.logger.IronSourceError.*
 import com.ironsource.mediationsdk.sdk.ISDemandOnlyInterstitialListener
 import com.ironsource.mediationsdk.sdk.ISDemandOnlyRewardedVideoListener
 import com.ironsource.mediationsdk.utils.IronSourceUtils
@@ -34,7 +35,7 @@ class IronSourceAdapter : PartnerAdapter {
     /**
      * Lambda to be called for a failed ironSource ad show.
      */
-    private var onShowFailure: () -> Unit = {}
+    private var onShowFailure: (error: IronSourceError) -> Unit = {}
 
     /**
      * Router that handles instance to singleton communication with ironSource.
@@ -301,7 +302,7 @@ class IronSourceAdapter : PartnerAdapter {
                         "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
 
-                    continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
+                    continuation.resume(Result.failure(HeliumAdException(getHeliumErrorCode(ironSourceError))))
                 }
 
                 override fun onInterstitialAdOpened(partnerPlacement: String) {
@@ -388,7 +389,7 @@ class IronSourceAdapter : PartnerAdapter {
                         LOAD_FAILED,
                         "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
-                    continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL)))
+                    continuation.resume(Result.failure(HeliumAdException(getHeliumErrorCode(ironSourceError))))
                 }
 
                 override fun onRewardedVideoAdOpened(partnerPlacement: String) {
@@ -471,7 +472,7 @@ class IronSourceAdapter : PartnerAdapter {
                         "Placement ${partnerAd.request.partnerPlacement}"
                     )
 
-                    continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
+                    continuation.resume(Result.failure(HeliumAdException(getHeliumErrorCode(it))))
                 }
 
                 IronSource.showISDemandOnlyInterstitial(partnerAd.request.partnerPlacement)
@@ -502,7 +503,7 @@ class IronSourceAdapter : PartnerAdapter {
                         SHOW_FAILED,
                         "Placement ${partnerAd.request.partnerPlacement}"
                     )
-                    continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_ERROR)))
+                    continuation.resume(Result.failure(HeliumAdException(getHeliumErrorCode(it))))
                 }
 
                 IronSource.showISDemandOnlyRewardedVideo(partnerAd.request.partnerPlacement)
@@ -531,6 +532,23 @@ class IronSourceAdapter : PartnerAdapter {
             )
             else -> false
         }
+    }
+
+    /**
+     * Convert a given ironSource error code into a [HeliumErrorCode].
+     *
+     * @param error The ironSource error code.
+     *
+     * @return The corresponding [HeliumErrorCode].
+     */
+    private fun getHeliumErrorCode(error: IronSourceError) = when (error.errorCode) {
+        ERROR_CODE_NO_ADS_TO_SHOW, ERROR_BN_LOAD_NO_FILL, ERROR_RV_LOAD_NO_FILL, ERROR_IS_LOAD_NO_FILL -> HeliumErrorCode.NO_FILL
+        ERROR_NO_INTERNET_CONNECTION -> HeliumErrorCode.NO_CONNECTIVITY
+        ERROR_BN_LOAD_NO_CONFIG -> HeliumErrorCode.INVALID_CONFIG
+        ERROR_BN_INSTANCE_LOAD_AUCTION_FAILED -> HeliumErrorCode.NO_BID_RETURNED
+        ERROR_BN_INSTANCE_LOAD_EMPTY_SERVER_DATA -> HeliumErrorCode.INVALID_BID_PAYLOAD
+        AUCTION_ERROR_TIMED_OUT, ERROR_BN_INSTANCE_LOAD_TIMEOUT, ERROR_BN_INSTANCE_RELOAD_TIMEOUT, ERROR_RV_INIT_FAILED_TIMEOUT, ERROR_DO_IS_LOAD_TIMED_OUT, ERROR_DO_RV_LOAD_TIMED_OUT -> HeliumErrorCode.PARTNER_SDK_TIMEOUT
+        else -> HeliumErrorCode.PARTNER_ERROR
     }
 
     /**
@@ -623,7 +641,7 @@ class IronSourceAdapter : PartnerAdapter {
                     CUSTOM,
                     "Lost ironSource listener on interstitial ad show failed with error $ironSourceError."
                 )
-            adapter.onShowFailure()
+            adapter.onShowFailure(ironSourceError)
         }
 
         override fun onInterstitialAdClicked(partnerPlacement: String) {
@@ -678,7 +696,7 @@ class IronSourceAdapter : PartnerAdapter {
                     CUSTOM,
                     "Lost ironSource listener on rewarded ad show failed."
                 )
-            adapter.onShowFailure()
+            adapter.onShowFailure(ironSourceError)
         }
 
         override fun onRewardedVideoAdClicked(partnerPlacement: String) {

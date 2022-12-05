@@ -7,6 +7,6 @@ pluginManagement {
 }
 
 rootProject.name = "IronSourceAdapter"
-include ':IronSourceAdapter'
-include ':android-helium-sdk'
-include ':Helium'
+include(":IronSourceAdapter")
+include(":android-helium-sdk")
+include(":Helium")

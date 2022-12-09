@@ -106,7 +106,7 @@ class IronSourceAdapter : PartnerAdapter {
                 Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
             } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing the app key.")
-            Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
+            Result.failure(HeliumAdException(HeliumError.HE_INITIALIZATION_FAILURE_INVALID_CREDENTIALS))
         }
     }
 
@@ -219,12 +219,12 @@ class IronSourceAdapter : PartnerAdapter {
                 }
                 else -> {
                     PartnerLogController.log(LOAD_FAILED)
-                    Result.failure(HeliumAdException(HeliumErrorCode.AD_FORMAT_NOT_SUPPORTED))
+                    Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
                 }
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Activity context is required.")
-            Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
+            Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_ACTIVITY_NOT_FOUND))
         }
     }
 
@@ -244,7 +244,7 @@ class IronSourceAdapter : PartnerAdapter {
             AdFormat.REWARDED -> showRewardedAd(partnerAd)
             else -> {
                 PartnerLogController.log(SHOW_FAILED)
-                Result.failure(HeliumAdException(HeliumErrorCode.AD_FORMAT_NOT_SUPPORTED))
+                Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
             }
         }
     }
@@ -302,7 +302,7 @@ class IronSourceAdapter : PartnerAdapter {
                         "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
 
-                    continuation.resume(Result.failure(HeliumAdException(getHeliumErrorCode(ironSourceError))))
+                    continuation.resume(Result.failure(HeliumAdException(getHeliumError(ironSourceError))))
                 }
 
                 override fun onInterstitialAdOpened(partnerPlacement: String) {
@@ -389,7 +389,7 @@ class IronSourceAdapter : PartnerAdapter {
                         LOAD_FAILED,
                         "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
-                    continuation.resume(Result.failure(HeliumAdException(getHeliumErrorCode(ironSourceError))))
+                    continuation.resume(Result.failure(HeliumAdException(getHeliumError(ironSourceError))))
                 }
 
                 override fun onRewardedVideoAdOpened(partnerPlacement: String) {
@@ -472,14 +472,14 @@ class IronSourceAdapter : PartnerAdapter {
                         "Placement ${partnerAd.request.partnerPlacement}"
                     )
 
-                    continuation.resume(Result.failure(HeliumAdException(getHeliumErrorCode(it))))
+                    continuation.resume(Result.failure(HeliumAdException(getHeliumError(it))))
                 }
 
                 IronSource.showISDemandOnlyInterstitial(partnerAd.request.partnerPlacement)
             }
         } else {
             PartnerLogController.log(SHOW_FAILED, "Ad isn't ready.")
-            Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+            Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_READY))
         }
     }
 
@@ -503,14 +503,14 @@ class IronSourceAdapter : PartnerAdapter {
                         SHOW_FAILED,
                         "Placement ${partnerAd.request.partnerPlacement}"
                     )
-                    continuation.resume(Result.failure(HeliumAdException(getHeliumErrorCode(it))))
+                    continuation.resume(Result.failure(HeliumAdException(getHeliumError(it))))
                 }
 
                 IronSource.showISDemandOnlyRewardedVideo(partnerAd.request.partnerPlacement)
             }
         } else {
             PartnerLogController.log(SHOW_FAILED, "Ad isn't ready.")
-            Result.failure(HeliumAdException(HeliumErrorCode.NO_FILL))
+            Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_READY))
         }
     }
 
@@ -535,20 +535,22 @@ class IronSourceAdapter : PartnerAdapter {
     }
 
     /**
-     * Convert a given ironSource error code into a [HeliumErrorCode].
+     * Convert a given ironSource error code into a [HeliumError].
      *
      * @param error The ironSource error code.
      *
-     * @return The corresponding [HeliumErrorCode].
+     * @return The corresponding [HeliumError].
      */
-    private fun getHeliumErrorCode(error: IronSourceError) = when (error.errorCode) {
-        ERROR_CODE_NO_ADS_TO_SHOW, ERROR_BN_LOAD_NO_FILL, ERROR_RV_LOAD_NO_FILL, ERROR_IS_LOAD_NO_FILL -> HeliumErrorCode.NO_FILL
-        ERROR_NO_INTERNET_CONNECTION -> HeliumErrorCode.NO_CONNECTIVITY
-        ERROR_BN_LOAD_NO_CONFIG -> HeliumErrorCode.INVALID_CONFIG
-        ERROR_BN_INSTANCE_LOAD_AUCTION_FAILED -> HeliumErrorCode.NO_BID_RETURNED
-        ERROR_BN_INSTANCE_LOAD_EMPTY_SERVER_DATA -> HeliumErrorCode.INVALID_BID_PAYLOAD
-        AUCTION_ERROR_TIMED_OUT, ERROR_BN_INSTANCE_LOAD_TIMEOUT, ERROR_BN_INSTANCE_RELOAD_TIMEOUT, ERROR_RV_INIT_FAILED_TIMEOUT, ERROR_DO_IS_LOAD_TIMED_OUT, ERROR_DO_RV_LOAD_TIMED_OUT -> HeliumErrorCode.PARTNER_SDK_TIMEOUT
-        else -> HeliumErrorCode.PARTNER_ERROR
+    private fun getHeliumError(error: IronSourceError) = when (error.errorCode) {
+        ERROR_CODE_NO_ADS_TO_SHOW, ERROR_BN_LOAD_NO_FILL, ERROR_RV_LOAD_NO_FILL, ERROR_IS_LOAD_NO_FILL -> HeliumError.HE_LOAD_FAILURE_NO_FILL
+        ERROR_NO_INTERNET_CONNECTION -> HeliumError.HE_NO_CONNECTIVITY
+        ERROR_BN_LOAD_NO_CONFIG -> HeliumError.HE_LOAD_FAILURE_INVALID_AD_REQUEST
+        ERROR_BN_INSTANCE_LOAD_AUCTION_FAILED -> HeliumError.HE_LOAD_FAILURE_AUCTION_NO_BID
+        ERROR_BN_INSTANCE_LOAD_EMPTY_SERVER_DATA -> HeliumError.HE_LOAD_FAILURE_INVALID_BID_RESPONSE
+        ERROR_RV_INIT_FAILED_TIMEOUT -> HeliumError.HE_INITIALIZATION_FAILURE_TIMEOUT
+        ERROR_DO_IS_LOAD_TIMED_OUT, ERROR_BN_INSTANCE_LOAD_TIMEOUT, ERROR_DO_RV_LOAD_TIMED_OUT -> HeliumError.HE_LOAD_FAILURE_TIMEOUT
+        AUCTION_ERROR_TIMED_OUT -> HeliumError.HE_LOAD_FAILURE_AUCTION_TIMEOUT
+        else -> HeliumError.HE_PARTNER_ERROR
     }
 
     /**

@@ -43,11 +43,6 @@ class IronSourceAdapter : PartnerAdapter {
     private var router: IronSourceRouter = IronSourceRouter(this)
 
     /**
-     * Indicate whether GDPR currently applies to the user.
-     */
-    private var gdprApplies = false
-
-    /**
      * Get the ironSource SDK version.
      */
     override val partnerSdkVersion: String
@@ -111,23 +106,25 @@ class IronSourceAdapter : PartnerAdapter {
     }
 
     /**
-     * Save the current GDPR applicability state for later use.
+     * Notify the ironSource SDK of the GDPR applicability and consent status.
      *
      * @param context The current [Context].
-     * @param gdprApplies True if GDPR applies, false otherwise.
+     * @param applies True if GDPR applies, false otherwise.
+     * @param gdprConsentStatus The user's GDPR consent status.
      */
-    override fun setGdprApplies(context: Context, gdprApplies: Boolean) {
-        PartnerLogController.log(if (gdprApplies) GDPR_APPLICABLE else GDPR_NOT_APPLICABLE)
-        this.gdprApplies = gdprApplies
-    }
+    override fun setGdpr(
+        context: Context,
+        applies: Boolean?,
+        gdprConsentStatus: GdprConsentStatus
+    ) {
+        PartnerLogController.log(
+            when (applies) {
+                true -> GDPR_APPLICABLE
+                false -> GDPR_NOT_APPLICABLE
+                else -> GDPR_UNKNOWN
+            }
+        )
 
-    /**
-     * Notify ironSource of the user's GDPR consent status, if applicable.
-     *
-     * @param context The current [Context].
-     * @param gdprConsentStatus The user's current GDPR consent status.
-     */
-    override fun setGdprConsentStatus(context: Context, gdprConsentStatus: GdprConsentStatus) {
         PartnerLogController.log(
             when (gdprConsentStatus) {
                 GdprConsentStatus.GDPR_CONSENT_UNKNOWN -> GDPR_CONSENT_UNKNOWN
@@ -136,7 +133,7 @@ class IronSourceAdapter : PartnerAdapter {
             }
         )
 
-        if (gdprApplies) {
+        if (applies == true) {
             IronSource.setConsent(gdprConsentStatus == GdprConsentStatus.GDPR_CONSENT_GRANTED)
         }
     }
@@ -302,7 +299,15 @@ class IronSourceAdapter : PartnerAdapter {
                         "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
 
-                    continuation.resume(Result.failure(HeliumAdException(getHeliumError(ironSourceError))))
+                    continuation.resume(
+                        Result.failure(
+                            HeliumAdException(
+                                getHeliumError(
+                                    ironSourceError
+                                )
+                            )
+                        )
+                    )
                 }
 
                 override fun onInterstitialAdOpened(partnerPlacement: String) {
@@ -389,7 +394,15 @@ class IronSourceAdapter : PartnerAdapter {
                         LOAD_FAILED,
                         "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
-                    continuation.resume(Result.failure(HeliumAdException(getHeliumError(ironSourceError))))
+                    continuation.resume(
+                        Result.failure(
+                            HeliumAdException(
+                                getHeliumError(
+                                    ironSourceError
+                                )
+                            )
+                        )
+                    )
                 }
 
                 override fun onRewardedVideoAdOpened(partnerPlacement: String) {

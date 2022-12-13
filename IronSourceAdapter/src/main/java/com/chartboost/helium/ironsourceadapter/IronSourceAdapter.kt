@@ -449,9 +449,7 @@ class IronSourceAdapter : PartnerAdapter {
                             ad = partnerPlacement,
                             details = emptyMap(),
                             request = request
-                        ),
-                        IronSource.getRewardedVideoPlacementInfo(partnerPlacement)
-                            ?.let { Reward(it.rewardAmount, it.rewardName) } ?: Reward(0, "")
+                        )
                     )
                 }
             }

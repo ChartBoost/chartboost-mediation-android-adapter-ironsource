@@ -153,7 +153,7 @@ class IronSourceAdapter : PartnerAdapter {
     override fun setCcpaConsent(
         context: Context,
         hasGrantedCcpaConsent: Boolean,
-        privacyString: String?
+        privacyString: String
     ) {
         PartnerLogController.log(
             if (hasGrantedCcpaConsent) CCPA_CONSENT_GRANTED

@@ -13,6 +13,9 @@ import com.ironsource.mediationsdk.sdk.ISDemandOnlyInterstitialListener
 import com.ironsource.mediationsdk.sdk.ISDemandOnlyRewardedVideoListener
 import com.ironsource.mediationsdk.utils.IronSourceUtils
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -87,7 +90,9 @@ class IronSourceAdapter : PartnerAdapter {
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
-        return partnerConfiguration.credentials.optString(APP_KEY_KEY).trim()
+        return Json.decodeFromJsonElement<String>(
+            (partnerConfiguration.credentials as JsonObject).getValue(APP_KEY_KEY)
+        ).trim()
             .takeIf { it.isNotEmpty() }?.let { appKey ->
                 IronSource.setMediationType("Helium $adapterVersion")
                 // IronSource leaks this Activity via ContextProvider, but it only ever leaks one

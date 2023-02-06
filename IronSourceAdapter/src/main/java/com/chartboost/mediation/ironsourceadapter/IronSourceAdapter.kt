@@ -5,7 +5,7 @@
  * license that can be found in the LICENSE file.
  */
 
-package com.chartboost.helium.ironsourceadapter
+package com.chartboost.mediation.ironsourceadapter
 
 import android.app.Activity
 import android.content.Context
@@ -27,7 +27,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 /**
- * The Helium ironSource adapter.
+ * The Chartboost Mediation ironSource adapter.
  */
 class IronSourceAdapter : PartnerAdapter {
     companion object {
@@ -62,16 +62,16 @@ class IronSourceAdapter : PartnerAdapter {
      * Get the ironSource adapter version.
      *
      * You may version the adapter using any preferred convention, but it is recommended to apply the
-     * following format if the adapter will be published by Helium:
+     * following format if the adapter will be published by Chartboost Mediation:
      *
-     * Helium.Partner.Adapter
+     * Chartboost Mediation.Partner.Adapter
      *
-     * "Helium" represents the Helium SDK’s major version that is compatible with this adapter. This must be 1 digit.
+     * "Chartboost Mediation" represents the Chartboost Mediation SDK’s major version that is compatible with this adapter. This must be 1 digit.
      * "Partner" represents the partner SDK’s major.minor.patch.x (where x is optional) version that is compatible with this adapter. This can be 3-4 digits.
      * "Adapter" represents this adapter’s version (starting with 0), which resets to 0 when the partner SDK’s version changes. This must be 1 digit.
      */
     override val adapterVersion: String
-        get() = BuildConfig.HELIUM_IRONSOURCE_ADAPTER_VERSION
+        get() = BuildConfig.CHARTBOOST_MEDIATION_IRONSOURCE_ADAPTER_VERSION
 
     /**
      * Get the partner name for internal uses.
@@ -101,7 +101,7 @@ class IronSourceAdapter : PartnerAdapter {
             (partnerConfiguration.credentials as JsonObject).getValue(APP_KEY_KEY)
         ).trim()
             .takeIf { it.isNotEmpty() }?.let { appKey ->
-                IronSource.setMediationType("Helium $adapterVersion")
+                IronSource.setMediationType("Chartboost")
                 // IronSource leaks this Activity via ContextProvider, but it only ever leaks one
                 // Activity at a time, so this is probably okay.
                 IronSource.initISDemandOnly(
@@ -118,7 +118,7 @@ class IronSourceAdapter : PartnerAdapter {
                 Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
             } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing the app key.")
-            Result.failure(HeliumAdException(HeliumError.HE_INITIALIZATION_FAILURE_INVALID_CREDENTIALS))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS))
         }
     }
 
@@ -212,7 +212,7 @@ class IronSourceAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
-     * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
+     * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
@@ -233,12 +233,12 @@ class IronSourceAdapter : PartnerAdapter {
                 }
                 else -> {
                     PartnerLogController.log(LOAD_FAILED)
-                    Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
+                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
                 }
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Activity context is required.")
-            Result.failure(HeliumAdException(HeliumError.HE_LOAD_FAILURE_ACTIVITY_NOT_FOUND))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_ACTIVITY_NOT_FOUND))
         }
     }
 
@@ -258,7 +258,7 @@ class IronSourceAdapter : PartnerAdapter {
             AdFormat.REWARDED -> showRewardedAd(partnerAd)
             else -> {
                 PartnerLogController.log(SHOW_FAILED)
-                Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
             }
         }
     }
@@ -282,7 +282,7 @@ class IronSourceAdapter : PartnerAdapter {
      *
      * @param activity The current [Activity].
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
-     * @param listener A [PartnerAdListener] to notify Helium of ad events.
+     * @param listener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      */
     private suspend fun loadInterstitialAd(
         activity: Activity,
@@ -318,8 +318,8 @@ class IronSourceAdapter : PartnerAdapter {
 
                     continuation.resume(
                         Result.failure(
-                            HeliumAdException(
-                                getHeliumError(
+                            ChartboostMediationAdException(
+                                getChartboostMediationError(
                                     ironSourceError
                                 )
                             )
@@ -378,7 +378,7 @@ class IronSourceAdapter : PartnerAdapter {
      *
      * @param activity The current [Activity].
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
-     * @param listener A [PartnerAdListener] to notify Helium of ad events.
+     * @param listener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      */
     private suspend fun loadRewardedAd(
         activity: Activity,
@@ -413,8 +413,8 @@ class IronSourceAdapter : PartnerAdapter {
                     )
                     continuation.resume(
                         Result.failure(
-                            HeliumAdException(
-                                getHeliumError(
+                            ChartboostMediationAdException(
+                                getChartboostMediationError(
                                     ironSourceError
                                 )
                             )
@@ -500,14 +500,14 @@ class IronSourceAdapter : PartnerAdapter {
                         "Placement ${partnerAd.request.partnerPlacement}"
                     )
 
-                    continuation.resume(Result.failure(HeliumAdException(getHeliumError(it))))
+                    continuation.resume(Result.failure(ChartboostMediationAdException(getChartboostMediationError(it))))
                 }
 
                 IronSource.showISDemandOnlyInterstitial(partnerAd.request.partnerPlacement)
             }
         } else {
             PartnerLogController.log(SHOW_FAILED, "Ad isn't ready.")
-            Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_READY))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_READY))
         }
     }
 
@@ -531,14 +531,14 @@ class IronSourceAdapter : PartnerAdapter {
                         SHOW_FAILED,
                         "Placement ${partnerAd.request.partnerPlacement}"
                     )
-                    continuation.resume(Result.failure(HeliumAdException(getHeliumError(it))))
+                    continuation.resume(Result.failure(ChartboostMediationAdException(getChartboostMediationError(it))))
                 }
 
                 IronSource.showISDemandOnlyRewardedVideo(partnerAd.request.partnerPlacement)
             }
         } else {
             PartnerLogController.log(SHOW_FAILED, "Ad isn't ready.")
-            Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_READY))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_READY))
         }
     }
 
@@ -563,27 +563,27 @@ class IronSourceAdapter : PartnerAdapter {
     }
 
     /**
-     * Convert a given ironSource error code into a [HeliumError].
+     * Convert a given ironSource error code into a [ChartboostMediationError].
      *
      * @param error The ironSource error code.
      *
-     * @return The corresponding [HeliumError].
+     * @return The corresponding [ChartboostMediationError].
      */
-    private fun getHeliumError(error: IronSourceError) = when (error.errorCode) {
-        ERROR_CODE_NO_ADS_TO_SHOW, ERROR_BN_LOAD_NO_FILL, ERROR_RV_LOAD_NO_FILL, ERROR_IS_LOAD_NO_FILL -> HeliumError.HE_LOAD_FAILURE_NO_FILL
-        ERROR_NO_INTERNET_CONNECTION -> HeliumError.HE_NO_CONNECTIVITY
-        ERROR_BN_LOAD_NO_CONFIG -> HeliumError.HE_LOAD_FAILURE_INVALID_AD_REQUEST
-        ERROR_BN_INSTANCE_LOAD_AUCTION_FAILED -> HeliumError.HE_LOAD_FAILURE_AUCTION_NO_BID
-        ERROR_BN_INSTANCE_LOAD_EMPTY_SERVER_DATA -> HeliumError.HE_LOAD_FAILURE_INVALID_BID_RESPONSE
-        ERROR_RV_INIT_FAILED_TIMEOUT -> HeliumError.HE_INITIALIZATION_FAILURE_TIMEOUT
-        ERROR_DO_IS_LOAD_TIMED_OUT, ERROR_BN_INSTANCE_LOAD_TIMEOUT, ERROR_DO_RV_LOAD_TIMED_OUT -> HeliumError.HE_LOAD_FAILURE_TIMEOUT
-        AUCTION_ERROR_TIMED_OUT -> HeliumError.HE_LOAD_FAILURE_AUCTION_TIMEOUT
-        else -> HeliumError.HE_PARTNER_ERROR
+    private fun getChartboostMediationError(error: IronSourceError) = when (error.errorCode) {
+        ERROR_CODE_NO_ADS_TO_SHOW, ERROR_BN_LOAD_NO_FILL, ERROR_RV_LOAD_NO_FILL, ERROR_IS_LOAD_NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
+        ERROR_NO_INTERNET_CONNECTION -> ChartboostMediationError.CM_NO_CONNECTIVITY
+        ERROR_BN_LOAD_NO_CONFIG -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
+        ERROR_BN_INSTANCE_LOAD_AUCTION_FAILED -> ChartboostMediationError.CM_LOAD_FAILURE_AUCTION_NO_BID
+        ERROR_BN_INSTANCE_LOAD_EMPTY_SERVER_DATA -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BID_RESPONSE
+        ERROR_RV_INIT_FAILED_TIMEOUT -> ChartboostMediationError.CM_INITIALIZATION_FAILURE_TIMEOUT
+        ERROR_DO_IS_LOAD_TIMED_OUT, ERROR_BN_INSTANCE_LOAD_TIMEOUT, ERROR_DO_RV_LOAD_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
+        AUCTION_ERROR_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_AUCTION_TIMEOUT
+        else -> ChartboostMediationError.CM_PARTNER_ERROR
     }
 
     /**
-     * Since ironSource has a singleton listener, Helium needs a router to sort the callbacks that
-     * result from each load/show attempt.
+     * Since ironSource has a singleton listener, Chartboost Mediation needs a router to sort the
+     * callbacks that result from each load/show attempt.
      */
     private class IronSourceRouter(val adapter: IronSourceAdapter) :
         ISDemandOnlyInterstitialListener,

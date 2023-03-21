@@ -365,6 +365,19 @@ class IronSourceAdapter : PartnerAdapter {
                 }
             }
 
+            if (router.containsInterstitialListener(request.partnerPlacement)) {
+                PartnerLogController.log(
+                    LOAD_FAILED,
+                    "ironSource interstitial placement ${request.partnerPlacement} is already attached to another Chartboost placement."
+                )
+                continuation.resume(
+                    Result.failure(
+                        ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_ABORTED)
+                    )
+                )
+                return@suspendCoroutine
+            }
+
             router.subscribeInterstitialListener(
                 request.partnerPlacement,
                 ironSourceInterstitialListener
@@ -469,6 +482,19 @@ class IronSourceAdapter : PartnerAdapter {
                         )
                     )
                 }
+            }
+
+            if (router.containsRewardedListener(request.partnerPlacement)) {
+                PartnerLogController.log(
+                    LOAD_FAILED,
+                    "ironSource rewarded placement ${request.partnerPlacement} is already attached to another Chartboost placement."
+                )
+                continuation.resume(
+                    Result.failure(
+                        ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_ABORTED)
+                    )
+                )
+                return@suspendCoroutine
             }
 
             router.subscribeRewardedListener(
@@ -592,14 +618,22 @@ class IronSourceAdapter : PartnerAdapter {
         /**
          * Map of ironSource placements to interstitial listeners.
          */
-        val interstitialListenersMap: MutableMap<String, ISDemandOnlyInterstitialListener> =
+        private val interstitialListenersMap: MutableMap<String, ISDemandOnlyInterstitialListener> =
             mutableMapOf()
 
         /**
          * Map of ironSource placements to rewarded video listeners.
          */
-        val rewardedListenersMap: MutableMap<String, ISDemandOnlyRewardedVideoListener> =
+        private val rewardedListenersMap: MutableMap<String, ISDemandOnlyRewardedVideoListener> =
             mutableMapOf()
+
+        /**
+         * Checks to see if the router currently is listening for this ironSource placement.
+         * @return True if the placement is already being listened to, false otherwise.
+         */
+        fun containsInterstitialListener(ironSourcePlacement: String): Boolean {
+            return interstitialListenersMap.contains(ironSourcePlacement)
+        }
 
         /**
          * Adds an interstitial listener to this router. These are automatically removed on ad
@@ -610,6 +644,14 @@ class IronSourceAdapter : PartnerAdapter {
             listener: ISDemandOnlyInterstitialListener
         ) {
             interstitialListenersMap[partnerPlacement] = listener
+        }
+
+        /**
+         * Checks to see if the router currently is listening for this ironSource placement.
+         * @return True if the placement is already being listened to, false otherwise.
+         */
+        fun containsRewardedListener(ironSourcePlacement: String): Boolean {
+            return rewardedListenersMap.contains(ironSourcePlacement)
         }
 
         /**

@@ -16,8 +16,8 @@ import com.ironsource.mediationsdk.IronSource
 import com.ironsource.mediationsdk.IronSource.AD_UNIT
 import com.ironsource.mediationsdk.logger.IronSourceError
 import com.ironsource.mediationsdk.logger.IronSourceError.*
-import com.ironsource.mediationsdk.sdk.ISDemandOnlyInterstitialListener
-import com.ironsource.mediationsdk.sdk.ISDemandOnlyRewardedVideoListener
+import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyInterstitialListener
+import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyRewardedVideoListener
 import com.ironsource.mediationsdk.utils.IronSourceUtils
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json

@@ -40,6 +40,8 @@ android {
 
         buildConfigField("String", "CHARTBOOST_MEDIATION_IRONSOURCE_ADAPTER_VERSION", "\"${android.defaultConfig.versionName}\"")
 
+        consumerProguardFiles("proguard-rules.pro")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

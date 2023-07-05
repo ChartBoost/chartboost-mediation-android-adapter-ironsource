@@ -329,6 +329,13 @@ class IronSourceAdapter : PartnerAdapter {
 
                 override fun onInterstitialAdOpened(partnerPlacement: String) {
                     // Show success lambda handled in the router
+                    listener.onPartnerAdImpression(
+                        PartnerAd(
+                            ad = partnerPlacement,
+                            details = emptyMap(),
+                            request = request
+                        )
+                    )
                 }
 
                 override fun onInterstitialAdClosed(partnerPlacement: String) {
@@ -437,6 +444,13 @@ class IronSourceAdapter : PartnerAdapter {
 
                 override fun onRewardedVideoAdOpened(partnerPlacement: String) {
                     // Show success lambda handled in the router
+                    listener.onPartnerAdImpression(
+                        PartnerAd(
+                            ad = partnerPlacement,
+                            details = emptyMap(),
+                            request = request
+                        )
+                    )
                 }
 
                 override fun onRewardedVideoAdClosed(partnerPlacement: String) {

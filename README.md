@@ -13,7 +13,7 @@ The Chartboost Mediation ironSource adapter mediates ironSource via the Chartboo
 
 In your `build.gradle`, add the following entry:
 ```
-    implementation "com.chartboost:chartboost-mediation-adapter-ironsource:4.7.3.0.0.2"
+    implementation "com.chartboost:chartboost-mediation-adapter-ironsource:4.7.3.1.0.0"
 ```
 
 ## Contributions

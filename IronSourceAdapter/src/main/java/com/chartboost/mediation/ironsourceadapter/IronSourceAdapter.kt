@@ -24,7 +24,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 /**
  * The Chartboost Mediation ironSource adapter.
@@ -97,36 +96,28 @@ class IronSourceAdapter : PartnerAdapter {
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
-        return suspendCancellableCoroutine { continuation ->
-            fun resumeOnce(result: Result<Unit>) {
-                if (continuation.isActive) {
-                    continuation.resume(result)
-                }
-            }
+        return Json.decodeFromJsonElement<String>(
+            (partnerConfiguration.credentials as JsonObject).getValue(APP_KEY_KEY)
+        ).trim()
+            .takeIf { it.isNotEmpty() }?.let { appKey ->
+                IronSource.setMediationType("Chartboost")
+                // IronSource leaks this Activity via ContextProvider, but it only ever leaks one
+                // Activity at a time, so this is probably okay.
+                IronSource.initISDemandOnly(
+                    context,
+                    appKey,
+                    AD_UNIT.INTERSTITIAL,
+                    AD_UNIT.REWARDED_VIDEO
+                )
 
-            Json.decodeFromJsonElement<String>(
-                (partnerConfiguration.credentials as JsonObject).getValue(APP_KEY_KEY)
-            ).trim()
-                .takeIf { it.isNotEmpty() }?.let { appKey ->
-                    IronSource.setMediationType("Chartboost")
-                    // IronSource leaks this Activity via ContextProvider, but it only ever leaks one
-                    // Activity at a time, so this is probably okay.
-                    IronSource.initISDemandOnly(
-                        context,
-                        appKey,
-                        AD_UNIT.INTERSTITIAL,
-                        AD_UNIT.REWARDED_VIDEO
-                    )
+                // This router is required to forward the singleton callbacks to the instance ones.
+                IronSource.setISDemandOnlyInterstitialListener(router)
+                IronSource.setISDemandOnlyRewardedVideoListener(router)
 
-                    // This router is required to forward the singleton callbacks to the instance ones.
-                    IronSource.setISDemandOnlyInterstitialListener(router)
-                    IronSource.setISDemandOnlyRewardedVideoListener(router)
-
-                    resumeOnce(Result.success(PartnerLogController.log(SETUP_SUCCEEDED)))
-                } ?: run {
-                PartnerLogController.log(SETUP_FAILED, "Missing the app key.")
-                resumeOnce(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS)))
-            }
+                Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
+            } ?: run {
+            PartnerLogController.log(SETUP_FAILED, "Missing the app key.")
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS))
         }
     }
 

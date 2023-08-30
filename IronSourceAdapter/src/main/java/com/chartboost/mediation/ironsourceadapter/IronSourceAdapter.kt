@@ -24,7 +24,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 /**
  * The Chartboost Mediation ironSource adapter.
@@ -289,12 +288,18 @@ class IronSourceAdapter : PartnerAdapter {
         request: PartnerAdLoadRequest,
         listener: PartnerAdListener
     ): Result<PartnerAd> {
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<PartnerAd>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             val ironSourceInterstitialListener = object :
                 ISDemandOnlyInterstitialListener {
                 override fun onInterstitialAdReady(partnerPlacement: String) {
                     PartnerLogController.log(LOAD_SUCCEEDED)
-                    continuation.resume(
+                    resumeOnce(
                         Result.success(
                             PartnerAd(
                                 // This returns just the partner placement since we don't have
@@ -316,7 +321,7 @@ class IronSourceAdapter : PartnerAdapter {
                         "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
 
-                    continuation.resume(
+                    resumeOnce(
                         Result.failure(
                             ChartboostMediationAdException(
                                 getChartboostMediationError(
@@ -377,12 +382,12 @@ class IronSourceAdapter : PartnerAdapter {
                     LOAD_FAILED,
                     "ironSource interstitial placement ${request.partnerPlacement} is already attached to another Chartboost placement."
                 )
-                continuation.resume(
+                resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_ABORTED)
                     )
                 )
-                return@suspendCoroutine
+                return@suspendCancellableCoroutine
             }
 
             router.subscribeInterstitialListener(
@@ -405,12 +410,18 @@ class IronSourceAdapter : PartnerAdapter {
         request: PartnerAdLoadRequest,
         listener: PartnerAdListener
     ): Result<PartnerAd> {
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<PartnerAd>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             val ironSourceRewardedVideoListener = object :
                 ISDemandOnlyRewardedVideoListener {
                 override fun onRewardedVideoAdLoadSuccess(partnerPlacement: String) {
                     PartnerLogController.log(LOAD_SUCCEEDED)
-                    continuation.resume(
+                    resumeOnce(
                         Result.success(
                             PartnerAd(
                                 // This returns just the partner placement since we don't have
@@ -431,7 +442,7 @@ class IronSourceAdapter : PartnerAdapter {
                         LOAD_FAILED,
                         "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}"
                     )
-                    continuation.resume(
+                    resumeOnce(
                         Result.failure(
                             ChartboostMediationAdException(
                                 getChartboostMediationError(
@@ -503,12 +514,12 @@ class IronSourceAdapter : PartnerAdapter {
                     LOAD_FAILED,
                     "ironSource rewarded placement ${request.partnerPlacement} is already attached to another Chartboost placement."
                 )
-                continuation.resume(
+                resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_ABORTED)
                     )
                 )
-                return@suspendCoroutine
+                return@suspendCancellableCoroutine
             }
 
             router.subscribeRewardedListener(
@@ -529,9 +540,15 @@ class IronSourceAdapter : PartnerAdapter {
     private suspend fun showInterstitialAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return if (readyToShow(partnerAd.request.format, partnerAd.request.partnerPlacement)) {
             return suspendCancellableCoroutine { continuation ->
+                fun resumeOnce(result: Result<PartnerAd>) {
+                    if (continuation.isActive) {
+                        continuation.resume(result)
+                    }
+                }
+
                 onShowSuccess = {
                     PartnerLogController.log(SHOW_SUCCEEDED)
-                    continuation.resume(Result.success(partnerAd))
+                    resumeOnce(Result.success(partnerAd))
                 }
 
                 onShowFailure = {
@@ -540,7 +557,7 @@ class IronSourceAdapter : PartnerAdapter {
                         "Placement ${partnerAd.request.partnerPlacement}"
                     )
 
-                    continuation.resume(Result.failure(ChartboostMediationAdException(getChartboostMediationError(it))))
+                    resumeOnce(Result.failure(ChartboostMediationAdException(getChartboostMediationError(it))))
                 }
 
                 IronSource.showISDemandOnlyInterstitial(partnerAd.request.partnerPlacement)
@@ -561,9 +578,15 @@ class IronSourceAdapter : PartnerAdapter {
     private suspend fun showRewardedAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return if (readyToShow(partnerAd.request.format, partnerAd.request.partnerPlacement)) {
             return suspendCancellableCoroutine { continuation ->
+                fun resumeOnce(result: Result<PartnerAd>) {
+                    if (continuation.isActive) {
+                        continuation.resume(result)
+                    }
+                }
+
                 onShowSuccess = {
                     PartnerLogController.log(SHOW_SUCCEEDED)
-                    continuation.resume(Result.success(partnerAd))
+                    resumeOnce(Result.success(partnerAd))
                 }
 
                 onShowFailure = {
@@ -571,7 +594,7 @@ class IronSourceAdapter : PartnerAdapter {
                         SHOW_FAILED,
                         "Placement ${partnerAd.request.partnerPlacement}"
                     )
-                    continuation.resume(Result.failure(ChartboostMediationAdException(getChartboostMediationError(it))))
+                    resumeOnce(Result.failure(ChartboostMediationAdException(getChartboostMediationError(it))))
                 }
 
                 IronSource.showISDemandOnlyRewardedVideo(partnerAd.request.partnerPlacement)

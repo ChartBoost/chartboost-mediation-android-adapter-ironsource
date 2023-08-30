@@ -97,7 +97,7 @@ class IronSourceAdapter : PartnerAdapter {
         PartnerLogController.log(SETUP_STARTED)
 
         return Json.decodeFromJsonElement<String>(
-                (partnerConfiguration.credentials as JsonObject).getValue(APP_KEY_KEY)
+            (partnerConfiguration.credentials as JsonObject).getValue(APP_KEY_KEY)
         ).trim()
             .takeIf { it.isNotEmpty() }?.let { appKey ->
                 IronSource.setMediationType("Chartboost")

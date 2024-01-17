@@ -211,8 +211,11 @@ class IronSourceAdapter : PartnerAdapter {
         request: PreBidRequest,
     ): Map<String, String> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
-        PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
-        return emptyMap()
+
+        val token = IronSource.getISDemandOnlyBiddingData(context) ?: ""
+
+        PartnerLogController.log(if (token.isNotEmpty()) BIDDER_INFO_FETCH_SUCCEEDED else BIDDER_INFO_FETCH_FAILED)
+        return mapOf("token" to token)
     }
 
     /**
@@ -408,7 +411,12 @@ class IronSourceAdapter : PartnerAdapter {
                 request.partnerPlacement,
                 ironSourceInterstitialListener,
             )
-            IronSource.loadISDemandOnlyInterstitial(activity, request.partnerPlacement)
+
+            if (request.adm.isNullOrEmpty()) {
+                IronSource.loadISDemandOnlyInterstitial(activity, request.partnerPlacement)
+            } else {
+                IronSource.loadISDemandOnlyInterstitialWithAdm(activity, request.partnerPlacement, request.adm)
+            }
         }
     }
 
@@ -542,7 +550,12 @@ class IronSourceAdapter : PartnerAdapter {
                 request.partnerPlacement,
                 ironSourceRewardedVideoListener,
             )
-            IronSource.loadISDemandOnlyRewardedVideo(activity, request.partnerPlacement)
+
+            if (request.adm.isNullOrEmpty()) {
+                IronSource.loadISDemandOnlyRewardedVideo(activity, request.partnerPlacement)
+            } else {
+                IronSource.loadISDemandOnlyRewardedVideoWithAdm(activity, request.partnerPlacement, request.adm)
+            }
         }
     }
 

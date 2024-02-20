@@ -451,8 +451,8 @@ class IronSourceAdapter : PartnerAdapter {
     private suspend fun showRewardedAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return if (readyToShow(partnerAd.request.format, partnerAd.request.partnerPlacement)) {
             return suspendCancellableCoroutine { continuation ->
+                val weakContinuationRef = WeakReference(continuation)
                 fun resumeOnce(result: Result<PartnerAd>) {
-                    val weakContinuationRef = WeakReference(continuation)
                     weakContinuationRef.get()?.let {
                         if (it.isActive) {
                             it.resume(result)

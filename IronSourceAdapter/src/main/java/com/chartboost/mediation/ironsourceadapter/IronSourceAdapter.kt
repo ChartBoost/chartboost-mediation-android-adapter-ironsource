@@ -19,10 +19,12 @@ import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyRewardedVideoListener
 import com.ironsource.mediationsdk.logger.IronSourceError
 import com.ironsource.mediationsdk.logger.IronSourceError.*
 import com.ironsource.mediationsdk.utils.IronSourceUtils
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
+import java.lang.ref.WeakReference
 import kotlin.coroutines.resume
 
 /**
@@ -34,6 +36,26 @@ class IronSourceAdapter : PartnerAdapter {
          * Key for parsing the ironSource app key.
          */
         private const val APP_KEY_KEY = "app_key"
+
+        /**
+         * Convert a given ironSource error code into a [ChartboostMediationError].
+         *
+         * @param error The ironSource error code.
+         *
+         * @return The corresponding [ChartboostMediationError].
+         */
+        private fun getChartboostMediationError(error: IronSourceError) =
+            when (error.errorCode) {
+                ERROR_CODE_NO_ADS_TO_SHOW, ERROR_BN_LOAD_NO_FILL, ERROR_RV_LOAD_NO_FILL, ERROR_IS_LOAD_NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
+                ERROR_NO_INTERNET_CONNECTION -> ChartboostMediationError.CM_NO_CONNECTIVITY
+                ERROR_BN_LOAD_NO_CONFIG -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
+                ERROR_BN_INSTANCE_LOAD_AUCTION_FAILED -> ChartboostMediationError.CM_LOAD_FAILURE_AUCTION_NO_BID
+                ERROR_BN_INSTANCE_LOAD_EMPTY_SERVER_DATA -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BID_RESPONSE
+                ERROR_RV_INIT_FAILED_TIMEOUT -> ChartboostMediationError.CM_INITIALIZATION_FAILURE_TIMEOUT
+                ERROR_DO_IS_LOAD_TIMED_OUT, ERROR_BN_INSTANCE_LOAD_TIMEOUT, ERROR_DO_RV_LOAD_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
+                AUCTION_ERROR_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_AUCTION_TIMEOUT
+                else -> ChartboostMediationError.CM_PARTNER_ERROR
+            }
     }
 
     /**
@@ -307,90 +329,6 @@ class IronSourceAdapter : PartnerAdapter {
                 }
             }
 
-            val ironSourceInterstitialListener =
-                object :
-                    ISDemandOnlyInterstitialListener {
-                    override fun onInterstitialAdReady(partnerPlacement: String) {
-                        PartnerLogController.log(LOAD_SUCCEEDED)
-                        resumeOnce(
-                            Result.success(
-                                PartnerAd(
-                                    // This returns just the partner placement since we don't have
-                                    // access to the actual ad.
-                                    ad = partnerPlacement,
-                                    details = emptyMap(),
-                                    request = request,
-                                ),
-                            ),
-                        )
-                    }
-
-                    override fun onInterstitialAdLoadFailed(
-                        partnerPlacement: String,
-                        ironSourceError: IronSourceError,
-                    ) {
-                        PartnerLogController.log(
-                            LOAD_FAILED,
-                            "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}",
-                        )
-
-                        resumeOnce(
-                            Result.failure(
-                                ChartboostMediationAdException(
-                                    getChartboostMediationError(
-                                        ironSourceError,
-                                    ),
-                                ),
-                            ),
-                        )
-                    }
-
-                    override fun onInterstitialAdOpened(partnerPlacement: String) {
-                        // Show success lambda handled in the router
-                        listener.onPartnerAdImpression(
-                            PartnerAd(
-                                ad = partnerPlacement,
-                                details = emptyMap(),
-                                request = request,
-                            ),
-                        )
-                    }
-
-                    override fun onInterstitialAdClosed(partnerPlacement: String) {
-                        PartnerLogController.log(DID_DISMISS)
-                        listener.onPartnerAdDismissed(
-                            PartnerAd(
-                                ad = partnerPlacement,
-                                details = emptyMap(),
-                                request = request,
-                            ),
-                            null,
-                        )
-                    }
-
-                    override fun onInterstitialAdShowFailed(
-                        partnerPlacement: String,
-                        ironSourceError: IronSourceError,
-                    ) {
-                        PartnerLogController.log(
-                            SHOW_FAILED,
-                            "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}",
-                        )
-                        // Show failure lambda handled in the router
-                    }
-
-                    override fun onInterstitialAdClicked(partnerPlacement: String) {
-                        PartnerLogController.log(DID_CLICK)
-                        listener.onPartnerAdClicked(
-                            PartnerAd(
-                                ad = partnerPlacement,
-                                details = emptyMap(),
-                                request = request,
-                            ),
-                        )
-                    }
-                }
-
             if (router.containsInterstitialListener(request.partnerPlacement)) {
                 PartnerLogController.log(
                     LOAD_FAILED,
@@ -406,7 +344,11 @@ class IronSourceAdapter : PartnerAdapter {
 
             router.subscribeInterstitialListener(
                 request.partnerPlacement,
-                ironSourceInterstitialListener,
+                InterstitialAdListener(
+                    WeakReference(continuation),
+                    request = request,
+                    listener = listener,
+                )
             )
             IronSource.loadISDemandOnlyInterstitial(activity, request.partnerPlacement)
         }
@@ -431,100 +373,6 @@ class IronSourceAdapter : PartnerAdapter {
                 }
             }
 
-            val ironSourceRewardedVideoListener =
-                object :
-                    ISDemandOnlyRewardedVideoListener {
-                    override fun onRewardedVideoAdLoadSuccess(partnerPlacement: String) {
-                        PartnerLogController.log(LOAD_SUCCEEDED)
-                        resumeOnce(
-                            Result.success(
-                                PartnerAd(
-                                    // This returns just the partner placement since we don't have
-                                    // access to the actual ad.
-                                    ad = partnerPlacement,
-                                    details = emptyMap(),
-                                    request = request,
-                                ),
-                            ),
-                        )
-                    }
-
-                    override fun onRewardedVideoAdLoadFailed(
-                        partnerPlacement: String,
-                        ironSourceError: IronSourceError,
-                    ) {
-                        PartnerLogController.log(
-                            LOAD_FAILED,
-                            "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}",
-                        )
-                        resumeOnce(
-                            Result.failure(
-                                ChartboostMediationAdException(
-                                    getChartboostMediationError(
-                                        ironSourceError,
-                                    ),
-                                ),
-                            ),
-                        )
-                    }
-
-                    override fun onRewardedVideoAdOpened(partnerPlacement: String) {
-                        // Show success lambda handled in the router
-                        listener.onPartnerAdImpression(
-                            PartnerAd(
-                                ad = partnerPlacement,
-                                details = emptyMap(),
-                                request = request,
-                            ),
-                        )
-                    }
-
-                    override fun onRewardedVideoAdClosed(partnerPlacement: String) {
-                        PartnerLogController.log(DID_DISMISS)
-                        listener.onPartnerAdDismissed(
-                            PartnerAd(
-                                ad = partnerPlacement,
-                                details = emptyMap(),
-                                request = request,
-                            ),
-                            null,
-                        )
-                    }
-
-                    override fun onRewardedVideoAdShowFailed(
-                        partnerPlacement: String,
-                        ironSourceError: IronSourceError,
-                    ) {
-                        PartnerLogController.log(
-                            SHOW_FAILED,
-                            "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}",
-                        )
-                        // Show failure lambda handled in the router
-                    }
-
-                    override fun onRewardedVideoAdClicked(partnerPlacement: String) {
-                        PartnerLogController.log(DID_CLICK)
-                        listener.onPartnerAdClicked(
-                            PartnerAd(
-                                ad = partnerPlacement,
-                                details = emptyMap(),
-                                request = request,
-                            ),
-                        )
-                    }
-
-                    override fun onRewardedVideoAdRewarded(partnerPlacement: String) {
-                        PartnerLogController.log(DID_REWARD)
-                        listener.onPartnerAdRewarded(
-                            PartnerAd(
-                                ad = partnerPlacement,
-                                details = emptyMap(),
-                                request = request,
-                            ),
-                        )
-                    }
-                }
-
             if (router.containsRewardedListener(request.partnerPlacement)) {
                 PartnerLogController.log(
                     LOAD_FAILED,
@@ -540,7 +388,11 @@ class IronSourceAdapter : PartnerAdapter {
 
             router.subscribeRewardedListener(
                 request.partnerPlacement,
-                ironSourceRewardedVideoListener,
+                RewardedAdListener(
+                    WeakReference(continuation),
+                    request = request,
+                    listener = listener,
+                )
             )
             IronSource.loadISDemandOnlyRewardedVideo(activity, request.partnerPlacement)
         }
@@ -556,9 +408,14 @@ class IronSourceAdapter : PartnerAdapter {
     private suspend fun showInterstitialAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return if (readyToShow(partnerAd.request.format, partnerAd.request.partnerPlacement)) {
             return suspendCancellableCoroutine { continuation ->
+                val weakContinuationRef = WeakReference(continuation)
                 fun resumeOnce(result: Result<PartnerAd>) {
-                    if (continuation.isActive) {
-                        continuation.resume(result)
+                    weakContinuationRef.get()?.let {
+                        if (it.isActive) {
+                            it.resume(result)
+                        }
+                    } ?: run {
+                        PartnerLogController.log(SHOW_FAILED, "Unable to resume continuation once. Continuation is null.")
                     }
                 }
 
@@ -594,9 +451,14 @@ class IronSourceAdapter : PartnerAdapter {
     private suspend fun showRewardedAd(partnerAd: PartnerAd): Result<PartnerAd> {
         return if (readyToShow(partnerAd.request.format, partnerAd.request.partnerPlacement)) {
             return suspendCancellableCoroutine { continuation ->
+                val weakContinuationRef = WeakReference(continuation)
                 fun resumeOnce(result: Result<PartnerAd>) {
-                    if (continuation.isActive) {
-                        continuation.resume(result)
+                    weakContinuationRef.get()?.let {
+                        if (it.isActive) {
+                            it.resume(result)
+                        }
+                    } ?: run {
+                        PartnerLogController.log(SHOW_FAILED, "Unable to resume continuation once. Continuation is null.")
                     }
                 }
 
@@ -643,26 +505,6 @@ class IronSourceAdapter : PartnerAdapter {
             else -> false
         }
     }
-
-    /**
-     * Convert a given ironSource error code into a [ChartboostMediationError].
-     *
-     * @param error The ironSource error code.
-     *
-     * @return The corresponding [ChartboostMediationError].
-     */
-    private fun getChartboostMediationError(error: IronSourceError) =
-        when (error.errorCode) {
-            ERROR_CODE_NO_ADS_TO_SHOW, ERROR_BN_LOAD_NO_FILL, ERROR_RV_LOAD_NO_FILL, ERROR_IS_LOAD_NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-            ERROR_NO_INTERNET_CONNECTION -> ChartboostMediationError.CM_NO_CONNECTIVITY
-            ERROR_BN_LOAD_NO_CONFIG -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
-            ERROR_BN_INSTANCE_LOAD_AUCTION_FAILED -> ChartboostMediationError.CM_LOAD_FAILURE_AUCTION_NO_BID
-            ERROR_BN_INSTANCE_LOAD_EMPTY_SERVER_DATA -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BID_RESPONSE
-            ERROR_RV_INIT_FAILED_TIMEOUT -> ChartboostMediationError.CM_INITIALIZATION_FAILURE_TIMEOUT
-            ERROR_DO_IS_LOAD_TIMED_OUT, ERROR_BN_INSTANCE_LOAD_TIMEOUT, ERROR_DO_RV_LOAD_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
-            AUCTION_ERROR_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_AUCTION_TIMEOUT
-            else -> ChartboostMediationError.CM_PARTNER_ERROR
-        }
 
     /**
      * Since ironSource has a singleton listener, Chartboost Mediation needs a router to sort the
@@ -841,6 +683,228 @@ class IronSourceAdapter : PartnerAdapter {
                     CUSTOM,
                     "Lost ironSource listener on rewarded ad rewarded.",
                 )
+        }
+    }
+
+    /**
+     * Callback for interstitial ads.
+     *
+     * @param continuationRef A [WeakReference] to the [CancellableContinuation] to be resumed once the ad is shown.
+     * @param request A [PartnerAdLoadRequest] object containing the request.
+     * @param listener A [PartnerAdListener] to be notified of ad events.
+     */
+    private class InterstitialAdListener(
+        private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
+        private val request: PartnerAdLoadRequest,
+        private val listener: PartnerAdListener,
+    ): ISDemandOnlyInterstitialListener {
+        fun resumeOnce(result: Result<PartnerAd>) {
+            continuationRef.get()?.let {
+                if (it.isActive) {
+                    it.resume(result)
+                }
+            } ?: run {
+                PartnerLogController.log(
+                    LOAD_FAILED,
+                    "Unable to resume continuation. Continuation is null."
+                )
+            }
+        }
+
+        override fun onInterstitialAdReady(partnerPlacement: String) {
+            PartnerLogController.log(LOAD_SUCCEEDED)
+            resumeOnce(
+                Result.success(
+                    PartnerAd(
+                        // This returns just the partner placement since we don't have
+                        // access to the actual ad.
+                        ad = partnerPlacement,
+                        details = emptyMap(),
+                        request = request,
+                    ),
+                ),
+            )
+        }
+
+        override fun onInterstitialAdLoadFailed(
+            partnerPlacement: String,
+            ironSourceError: IronSourceError,
+        ) {
+            PartnerLogController.log(
+                LOAD_FAILED,
+                "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}",
+            )
+
+            resumeOnce(
+                Result.failure(
+                    ChartboostMediationAdException(
+                        getChartboostMediationError(
+                            ironSourceError,
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        override fun onInterstitialAdOpened(partnerPlacement: String) {
+            // Show success lambda handled in the router
+            listener.onPartnerAdImpression(
+                PartnerAd(
+                    ad = partnerPlacement,
+                    details = emptyMap(),
+                    request = request,
+                ),
+            )
+        }
+
+        override fun onInterstitialAdClosed(partnerPlacement: String) {
+            PartnerLogController.log(DID_DISMISS)
+            listener.onPartnerAdDismissed(
+                PartnerAd(
+                    ad = partnerPlacement,
+                    details = emptyMap(),
+                    request = request,
+                ),
+                null,
+            )
+        }
+
+        override fun onInterstitialAdShowFailed(
+            partnerPlacement: String,
+            ironSourceError: IronSourceError,
+        ) {
+            PartnerLogController.log(
+                SHOW_FAILED,
+                "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}",
+            )
+            // Show failure lambda handled in the router
+        }
+
+        override fun onInterstitialAdClicked(partnerPlacement: String) {
+            PartnerLogController.log(DID_CLICK)
+            listener.onPartnerAdClicked(
+                PartnerAd(
+                    ad = partnerPlacement,
+                    details = emptyMap(),
+                    request = request,
+                ),
+            )
+        }
+    }
+
+    /**
+     * Callback for rewarded ads.
+     *
+     * @param continuationRef A [WeakReference] to the [CancellableContinuation] to be resumed once the ad is shown.
+     * @param request A [PartnerAdLoadRequest] object containing the request.
+     * @param listener A [PartnerAdListener] to be notified of ad events.
+     */
+    private class RewardedAdListener(
+        private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
+        private val request: PartnerAdLoadRequest,
+        private val listener: PartnerAdListener,
+    ): ISDemandOnlyRewardedVideoListener {
+        fun resumeOnce(result: Result<PartnerAd>) {
+            continuationRef.get()?.let {
+                if (it.isActive) {
+                    it.resume(result)
+                }
+            } ?: run {
+                PartnerLogController.log(
+                    LOAD_FAILED,
+                    "Unable to resume continuation. Continuation is null."
+                )
+            }
+        }
+
+        override fun onRewardedVideoAdLoadSuccess(partnerPlacement: String) {
+            PartnerLogController.log(LOAD_SUCCEEDED)
+            resumeOnce(
+                Result.success(
+                    PartnerAd(
+                        // This returns just the partner placement since we don't have
+                        // access to the actual ad.
+                        ad = partnerPlacement,
+                        details = emptyMap(),
+                        request = request,
+                    ),
+                ),
+            )
+        }
+
+        override fun onRewardedVideoAdLoadFailed(
+            partnerPlacement: String,
+            ironSourceError: IronSourceError,
+        ) {
+            PartnerLogController.log(
+                LOAD_FAILED,
+                "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}",
+            )
+            resumeOnce(
+                Result.failure(
+                    ChartboostMediationAdException(
+                        getChartboostMediationError(
+                            ironSourceError,
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        override fun onRewardedVideoAdOpened(partnerPlacement: String) {
+            // Show success lambda handled in the router
+            listener.onPartnerAdImpression(
+                PartnerAd(
+                    ad = partnerPlacement,
+                    details = emptyMap(),
+                    request = request,
+                ),
+            )
+        }
+
+        override fun onRewardedVideoAdClosed(partnerPlacement: String) {
+            PartnerLogController.log(DID_DISMISS)
+            listener.onPartnerAdDismissed(
+                PartnerAd(
+                    ad = partnerPlacement,
+                    details = emptyMap(),
+                    request = request,
+                ),
+                null,
+            )
+        }
+
+        override fun onRewardedVideoAdShowFailed(
+            partnerPlacement: String,
+            ironSourceError: IronSourceError,
+        ) {
+            PartnerLogController.log(
+                SHOW_FAILED,
+                "Placement $partnerPlacement. Error code: ${ironSourceError.errorCode}",
+            )
+            // Show failure lambda handled in the router
+        }
+
+        override fun onRewardedVideoAdClicked(partnerPlacement: String) {
+            PartnerLogController.log(DID_CLICK)
+            listener.onPartnerAdClicked(
+                PartnerAd(
+                    ad = partnerPlacement,
+                    details = emptyMap(),
+                    request = request,
+                ),
+            )
+        }
+
+        override fun onRewardedVideoAdRewarded(partnerPlacement: String) {
+            PartnerLogController.log(DID_REWARD)
+            listener.onPartnerAdRewarded(
+                PartnerAd(
+                    ad = partnerPlacement,
+                    details = emptyMap(),
+                    request = request,
+                ),
+            )
         }
     }
 }

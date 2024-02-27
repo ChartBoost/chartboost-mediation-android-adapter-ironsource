@@ -253,13 +253,13 @@ class IronSourceAdapter : PartnerAdapter {
     /**
      * Attempt to show the currently loaded ironSource ad.
      *
-     * @param context The current [Context]
+     * @param activity The current [Activity]
      * @param partnerAd The [PartnerAd] object containing the ad to be shown.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     override suspend fun show(
-        context: Context,
+        activity: Activity,
         partnerAd: PartnerAd,
     ): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)

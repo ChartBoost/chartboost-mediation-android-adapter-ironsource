@@ -3,6 +3,18 @@
 Note the first digit of every adapter version corresponds to the major version of the Chartboost Mediation SDK compatible with that adapter. 
 Adapters are compatible with any Chartboost Mediation SDK version within that major version.
 
+### 4.8.0.0.0
+- This version of the adapter has been certified with ironSource SDK 8.0.0.
+
+### 4.7.9.0.0.0
+- This version of the adapter has been certified with ironSource SDK 7.9.0.
+
+### 4.7.8.1.0.0
+- This version of the adapter has been certified with ironSource SDK 7.8.1.
+
+### 4.7.7.0.0.1
+- Fix memory leaks that could occur when fullscreen ads are shown from an `Activity`.
+
 ### 4.7.7.0.0.0
 - This version of the adapter has been certified with ironSource SDK 7.7.0.
 

@@ -18,7 +18,6 @@ import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyInterstitialListener
 import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyRewardedVideoListener
 import com.ironsource.mediationsdk.logger.IronSourceError
 import com.ironsource.mediationsdk.logger.IronSourceError.*
-import com.ironsource.mediationsdk.utils.IronSourceUtils
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -37,6 +36,11 @@ class IronSourceAdapter : PartnerAdapter {
     }
 
     /**
+     * The ironSource adapter configuration.
+     */
+    override var configuration: PartnerAdapterConfiguration = IronSourceAdapterConfiguration
+
+    /**
      * Lambda to be called for a successful ironSource ad show.
      */
     private var onShowSuccess: () -> Unit = {}
@@ -50,39 +54,6 @@ class IronSourceAdapter : PartnerAdapter {
      * Router that handles instance to singleton communication with ironSource.
      */
     private var router: IronSourceRouter = IronSourceRouter(this)
-
-    /**
-     * Get the ironSource SDK version.
-     */
-    override val partnerSdkVersion: String
-        get() = IronSourceUtils.getSDKVersion()
-
-    /**
-     * Get the ironSource adapter version.
-     *
-     * You may version the adapter using any preferred convention, but it is recommended to apply the
-     * following format if the adapter will be published by Chartboost Mediation:
-     *
-     * Chartboost Mediation.Partner.Adapter
-     *
-     * "Chartboost Mediation" represents the Chartboost Mediation SDK’s major version that is compatible with this adapter. This must be 1 digit.
-     * "Partner" represents the partner SDK’s major.minor.patch.x (where x is optional) version that is compatible with this adapter. This can be 3-4 digits.
-     * "Adapter" represents this adapter’s version (starting with 0), which resets to 0 when the partner SDK’s version changes. This must be 1 digit.
-     */
-    override val adapterVersion: String
-        get() = BuildConfig.CHARTBOOST_MEDIATION_IRONSOURCE_ADAPTER_VERSION
-
-    /**
-     * Get the partner name for internal uses.
-     */
-    override val partnerId: String
-        get() = "ironsource"
-
-    /**
-     * Get the partner name for external uses.
-     */
-    override val partnerDisplayName: String
-        get() = "ironSource"
 
     /**
      * Initialize the ironSource SDK so that it is ready to request ads.

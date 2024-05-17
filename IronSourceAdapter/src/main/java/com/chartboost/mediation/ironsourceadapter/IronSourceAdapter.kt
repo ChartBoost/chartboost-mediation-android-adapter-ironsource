@@ -88,7 +88,7 @@ class IronSourceAdapter : PartnerAdapter {
                 Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
             } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing the app key.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.InvalidCredentials))
         }
     }
 
@@ -212,12 +212,12 @@ class IronSourceAdapter : PartnerAdapter {
                 }
                 else -> {
                     PartnerLogController.log(LOAD_FAILED)
-                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
+                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.UnsupportedAdFormat))
                 }
             }
         } ?: run {
             PartnerLogController.log(LOAD_FAILED, "Activity context is required.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_ACTIVITY_NOT_FOUND))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.ActivityNotFound))
         }
     }
 
@@ -240,7 +240,7 @@ class IronSourceAdapter : PartnerAdapter {
             AdFormat.REWARDED -> showRewardedAd(partnerAd)
             else -> {
                 PartnerLogController.log(SHOW_FAILED)
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.UnsupportedAdFormat))
             }
         }
     }
@@ -369,7 +369,7 @@ class IronSourceAdapter : PartnerAdapter {
                 )
                 resumeOnce(
                     Result.failure(
-                        ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_ABORTED),
+                        ChartboostMediationAdException(ChartboostMediationError.LoadError.Aborted),
                     ),
                 )
                 return@suspendCancellableCoroutine
@@ -503,7 +503,7 @@ class IronSourceAdapter : PartnerAdapter {
                 )
                 resumeOnce(
                     Result.failure(
-                        ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_ABORTED),
+                        ChartboostMediationAdException(ChartboostMediationError.LoadError.Aborted),
                     ),
                 )
                 return@suspendCancellableCoroutine
@@ -551,7 +551,7 @@ class IronSourceAdapter : PartnerAdapter {
             }
         } else {
             PartnerLogController.log(SHOW_FAILED, "Ad isn't ready.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_READY))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotReady))
         }
     }
 
@@ -588,7 +588,7 @@ class IronSourceAdapter : PartnerAdapter {
             }
         } else {
             PartnerLogController.log(SHOW_FAILED, "Ad isn't ready.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_READY))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotReady))
         }
     }
 
@@ -624,15 +624,15 @@ class IronSourceAdapter : PartnerAdapter {
      */
     private fun getChartboostMediationError(error: IronSourceError) =
         when (error.errorCode) {
-            ERROR_CODE_NO_ADS_TO_SHOW, ERROR_BN_LOAD_NO_FILL, ERROR_RV_LOAD_NO_FILL, ERROR_IS_LOAD_NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-            ERROR_NO_INTERNET_CONNECTION -> ChartboostMediationError.CM_NO_CONNECTIVITY
-            ERROR_BN_LOAD_NO_CONFIG -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
-            ERROR_BN_INSTANCE_LOAD_AUCTION_FAILED -> ChartboostMediationError.CM_LOAD_FAILURE_AUCTION_NO_BID
-            ERROR_BN_INSTANCE_LOAD_EMPTY_SERVER_DATA -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_BID_RESPONSE
-            ERROR_RV_INIT_FAILED_TIMEOUT -> ChartboostMediationError.CM_INITIALIZATION_FAILURE_TIMEOUT
-            ERROR_DO_IS_LOAD_TIMED_OUT, ERROR_BN_INSTANCE_LOAD_TIMEOUT, ERROR_DO_RV_LOAD_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
-            AUCTION_ERROR_TIMED_OUT -> ChartboostMediationError.CM_LOAD_FAILURE_AUCTION_TIMEOUT
-            else -> ChartboostMediationError.CM_PARTNER_ERROR
+            ERROR_CODE_NO_ADS_TO_SHOW, ERROR_BN_LOAD_NO_FILL, ERROR_RV_LOAD_NO_FILL, ERROR_IS_LOAD_NO_FILL -> ChartboostMediationError.LoadError.NoFill
+            ERROR_NO_INTERNET_CONNECTION -> ChartboostMediationError.OtherError.NoConnectivity
+            ERROR_BN_LOAD_NO_CONFIG -> ChartboostMediationError.LoadError.InvalidAdRequest
+            ERROR_BN_INSTANCE_LOAD_AUCTION_FAILED -> ChartboostMediationError.LoadError.AuctionNoBid
+            ERROR_BN_INSTANCE_LOAD_EMPTY_SERVER_DATA -> ChartboostMediationError.LoadError.InvalidBidResponse
+            ERROR_RV_INIT_FAILED_TIMEOUT -> ChartboostMediationError.InitializationError.Timeout
+            ERROR_DO_IS_LOAD_TIMED_OUT, ERROR_BN_INSTANCE_LOAD_TIMEOUT, ERROR_DO_RV_LOAD_TIMED_OUT -> ChartboostMediationError.LoadError.AdRequestTimeout
+            AUCTION_ERROR_TIMED_OUT -> ChartboostMediationError.LoadError.AdRequestTimeout
+            else -> ChartboostMediationError.OtherError.PartnerError
         }
 
     /**

@@ -11,13 +11,49 @@ import android.app.Activity
 import android.content.Context
 import com.chartboost.chartboostmediationsdk.domain.*
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
-import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.CUSTOM
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_CLICK
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_DISMISS
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_REWARD
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_DENIED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_GRANTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_UNKNOWN
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_NOT_UNDERAGE
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_UNDERAGE
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USP_CONSENT_DENIED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USP_CONSENT_GRANTED
+import com.chartboost.core.consent.*
 import com.ironsource.mediationsdk.IronSource
 import com.ironsource.mediationsdk.IronSource.AD_UNIT
 import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyInterstitialListener
 import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyRewardedVideoListener
 import com.ironsource.mediationsdk.logger.IronSourceError
-import com.ironsource.mediationsdk.logger.IronSourceError.*
+import com.ironsource.mediationsdk.logger.IronSourceError.AUCTION_ERROR_TIMED_OUT
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_BN_INSTANCE_LOAD_AUCTION_FAILED
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_BN_INSTANCE_LOAD_EMPTY_SERVER_DATA
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_BN_INSTANCE_LOAD_TIMEOUT
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_BN_LOAD_NO_CONFIG
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_BN_LOAD_NO_FILL
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_CODE_NO_ADS_TO_SHOW
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_DO_IS_LOAD_TIMED_OUT
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_DO_RV_LOAD_TIMED_OUT
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_IS_LOAD_NO_FILL
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_NO_INTERNET_CONNECTION
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_RV_INIT_FAILED_TIMEOUT
+import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_RV_LOAD_NO_FILL
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -64,7 +100,7 @@ class IronSourceAdapter : PartnerAdapter {
     override suspend fun setUp(
         context: Context,
         partnerConfiguration: PartnerConfiguration,
-    ): Result<Unit> {
+    ): Result<Map<String, Any>> {
         PartnerLogController.log(SETUP_STARTED)
 
         return Json.decodeFromJsonElement<String>(
@@ -85,7 +121,8 @@ class IronSourceAdapter : PartnerAdapter {
                 IronSource.setISDemandOnlyInterstitialListener(router)
                 IronSource.setISDemandOnlyRewardedVideoListener(router)
 
-                Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
+                PartnerLogController.log(SETUP_SUCCEEDED)
+                Result.success(emptyMap())
             } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing the app key.")
             Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.InvalidCredentials))
@@ -93,97 +130,41 @@ class IronSourceAdapter : PartnerAdapter {
     }
 
     /**
-     * Notify the ironSource SDK of the GDPR applicability and consent status.
-     *
-     * @param context The current [Context].
-     * @param applies True if GDPR applies, false otherwise.
-     * @param gdprConsentStatus The user's GDPR consent status.
-     */
-    override fun setGdpr(
-        context: Context,
-        applies: Boolean?,
-        gdprConsentStatus: GdprConsentStatus,
-    ) {
-        PartnerLogController.log(
-            when (applies) {
-                true -> GDPR_APPLICABLE
-                false -> GDPR_NOT_APPLICABLE
-                else -> GDPR_UNKNOWN
-            },
-        )
-
-        PartnerLogController.log(
-            when (gdprConsentStatus) {
-                GdprConsentStatus.GDPR_CONSENT_UNKNOWN -> GDPR_CONSENT_UNKNOWN
-                GdprConsentStatus.GDPR_CONSENT_GRANTED -> GDPR_CONSENT_GRANTED
-                GdprConsentStatus.GDPR_CONSENT_DENIED -> GDPR_CONSENT_DENIED
-            },
-        )
-
-        if (applies == true) {
-            IronSource.setConsent(gdprConsentStatus == GdprConsentStatus.GDPR_CONSENT_GRANTED)
-        }
-    }
-
-    /**
-     * Notify ironSource of the user's CCPA consent status, if applicable.
-     *
-     * @param context The current [Context].
-     * @param hasGrantedCcpaConsent True if the user has granted CCPA consent, false otherwise.
-     * @param privacyString The CCPA privacy string.
-     */
-    override fun setCcpaConsent(
-        context: Context,
-        hasGrantedCcpaConsent: Boolean,
-        privacyString: String,
-    ) {
-        PartnerLogController.log(
-            if (hasGrantedCcpaConsent) {
-                CCPA_CONSENT_GRANTED
-            } else {
-                CCPA_CONSENT_DENIED
-            },
-        )
-
-        IronSource.setMetaData("do_not_sell", if (hasGrantedCcpaConsent) "false" else "true")
-    }
-
-    /**
      * Notify ironSource of the COPPA subjectivity.
      *
      * @param context The current [Context].
-     * @param isSubjectToCoppa True if the user is subject to COPPA, false otherwise.
+     * @param isUserUnderage True if the user is subject to COPPA, false otherwise.
      */
-    override fun setUserSubjectToCoppa(
+    override fun setIsUserUnderage(
         context: Context,
-        isSubjectToCoppa: Boolean,
+        isUserUnderage: Boolean,
     ) {
         PartnerLogController.log(
-            if (isSubjectToCoppa) {
-                COPPA_SUBJECT
+            if (isUserUnderage) {
+                USER_IS_UNDERAGE
             } else {
-                COPPA_NOT_SUBJECT
+                USER_IS_NOT_UNDERAGE
             },
         )
 
-        IronSource.setMetaData("is_child_directed", if (isSubjectToCoppa) "true" else "false")
+        IronSource.setMetaData("is_child_directed", if (isUserUnderage) "true" else "false")
     }
 
     /**
      * Get a bid token if network bidding is supported.
      *
      * @param context The current [Context].
-     * @param request The [PreBidRequest] instance containing relevant data for the current bid request.
+     * @param request The [PartnerAdPreBidRequest] instance containing relevant data for the current bid request.
      *
      * @return A Map of biddable token Strings.
      */
     override suspend fun fetchBidderInformation(
         context: Context,
-        request: PreBidRequest,
-    ): Map<String, String> {
+        request: PartnerAdPreBidRequest,
+    ): Result<Map<String, String>> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
         PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
-        return emptyMap()
+        return Result.success(emptyMap())
     }
 
     /**
@@ -204,10 +185,10 @@ class IronSourceAdapter : PartnerAdapter {
 
         return (context as? Activity)?.let { activity ->
             when (request.format) {
-                AdFormat.INTERSTITIAL -> {
+                PartnerAdFormats.INTERSTITIAL -> {
                     loadInterstitialAd(activity, request, partnerAdListener)
                 }
-                AdFormat.REWARDED -> {
+                PartnerAdFormats.REWARDED -> {
                     loadRewardedAd(activity, request, partnerAdListener)
                 }
                 else -> {
@@ -236,8 +217,8 @@ class IronSourceAdapter : PartnerAdapter {
         PartnerLogController.log(SHOW_STARTED)
 
         return when (partnerAd.request.format) {
-            AdFormat.INTERSTITIAL -> showInterstitialAd(partnerAd)
-            AdFormat.REWARDED -> showRewardedAd(partnerAd)
+            PartnerAdFormats.INTERSTITIAL -> showInterstitialAd(partnerAd)
+            PartnerAdFormats.REWARDED -> showRewardedAd(partnerAd)
             else -> {
                 PartnerLogController.log(SHOW_FAILED)
                 Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.UnsupportedAdFormat))
@@ -257,6 +238,40 @@ class IronSourceAdapter : PartnerAdapter {
         PartnerLogController.log(INVALIDATE_STARTED)
         PartnerLogController.log(INVALIDATE_SUCCEEDED)
         return Result.success(partnerAd)
+    }
+
+    override fun setConsents(
+        context: Context,
+        consents: Map<ConsentKey, ConsentValue>,
+        modifiedKeys: Set<ConsentKey>
+    ) {
+        consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.let {
+            if (it == ConsentValues.DOES_NOT_APPLY) {
+                return@let
+            }
+            PartnerLogController.log(
+                when (it) {
+                    ConsentValues.GRANTED -> GDPR_CONSENT_GRANTED
+                    ConsentValues.DENIED -> GDPR_CONSENT_DENIED
+                    else -> GDPR_CONSENT_UNKNOWN
+                },
+            )
+
+            IronSource.setConsent(it == ConsentValues.GRANTED)
+        }
+
+        consents[ConsentKeys.USP]?.let {
+            val hasGrantedUspConsent = ConsentManagementPlatform.getUspConsentFromUspString(it)
+                PartnerLogController.log(
+                    if (hasGrantedUspConsent) {
+                        USP_CONSENT_GRANTED
+                    } else {
+                        USP_CONSENT_DENIED
+                    },
+                )
+
+            IronSource.setMetaData("do_not_sell", if (hasGrantedUspConsent) "false" else "true")
+        }
     }
 
     /**
@@ -601,14 +616,14 @@ class IronSourceAdapter : PartnerAdapter {
      * @return True if the ad is ready to be shown, false otherwise.
      */
     private fun readyToShow(
-        format: AdFormat,
+        format: PartnerAdFormat,
         placement: String,
     ): Boolean {
         return when (format) {
-            AdFormat.INTERSTITIAL -> return IronSource.isISDemandOnlyInterstitialReady(
+            PartnerAdFormats.INTERSTITIAL -> return IronSource.isISDemandOnlyInterstitialReady(
                 placement,
             )
-            AdFormat.REWARDED -> return IronSource.isISDemandOnlyRewardedVideoAvailable(
+            PartnerAdFormats.REWARDED -> return IronSource.isISDemandOnlyRewardedVideoAvailable(
                 placement,
             )
             else -> false

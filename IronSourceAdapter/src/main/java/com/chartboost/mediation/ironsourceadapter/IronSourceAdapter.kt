@@ -243,7 +243,7 @@ class IronSourceAdapter : PartnerAdapter {
     override fun setConsents(
         context: Context,
         consents: Map<ConsentKey, ConsentValue>,
-        modifiedKeys: Set<ConsentKey>
+        modifiedKeys: Set<ConsentKey>,
     ) {
         consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.let {
             if (it == ConsentValues.DOES_NOT_APPLY) {
@@ -262,13 +262,13 @@ class IronSourceAdapter : PartnerAdapter {
 
         consents[ConsentKeys.USP]?.let {
             val hasGrantedUspConsent = ConsentManagementPlatform.getUspConsentFromUspString(it)
-                PartnerLogController.log(
-                    if (hasGrantedUspConsent) {
-                        USP_CONSENT_GRANTED
-                    } else {
-                        USP_CONSENT_DENIED
-                    },
-                )
+            PartnerLogController.log(
+                if (hasGrantedUspConsent) {
+                    USP_CONSENT_GRANTED
+                } else {
+                    USP_CONSENT_DENIED
+                },
+            )
 
             IronSource.setMetaData("do_not_sell", if (hasGrantedUspConsent) "false" else "true")
         }

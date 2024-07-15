@@ -69,6 +69,11 @@ class IronSourceAdapter : PartnerAdapter {
          * Key for parsing the ironSource app key.
          */
         private const val APP_KEY_KEY = "app_key"
+
+        /**
+         * The key for the ironSource do not sell signal.
+         */
+        private const val DO_NOT_SELL_KEY = "do_not_sell"
     }
 
     /**
@@ -245,7 +250,9 @@ class IronSourceAdapter : PartnerAdapter {
         consents: Map<ConsentKey, ConsentValue>,
         modifiedKeys: Set<ConsentKey>,
     ) {
-        consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.let {
+        val consent = consents[configuration.partnerId]?.takeIf { it.isNotBlank() }
+            ?: consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.takeIf { it.isNotBlank() }
+        consent?.let {
             if (it == ConsentValues.DOES_NOT_APPLY) {
                 return@let
             }
@@ -260,8 +267,12 @@ class IronSourceAdapter : PartnerAdapter {
             IronSource.setConsent(it == ConsentValues.GRANTED)
         }
 
-        consents[ConsentKeys.USP]?.let {
-            val hasGrantedUspConsent = ConsentManagementPlatform.getUspConsentFromUspString(it)
+        val hasGrantedUspConsent =
+            consents[ConsentKeys.CCPA_OPT_IN]?.takeIf { it.isNotBlank() }
+                ?.equals(ConsentValues.GRANTED)
+                ?: consents[ConsentKeys.USP]?.takeIf { it.isNotBlank() }
+                    ?.let { ConsentManagementPlatform.getUspConsentFromUspString(it) }
+        hasGrantedUspConsent?.let {
             PartnerLogController.log(
                 if (hasGrantedUspConsent) {
                     USP_CONSENT_GRANTED
@@ -270,7 +281,7 @@ class IronSourceAdapter : PartnerAdapter {
                 },
             )
 
-            IronSource.setMetaData("do_not_sell", if (hasGrantedUspConsent) "false" else "true")
+            IronSource.setMetaData(DO_NOT_SELL_KEY, if (hasGrantedUspConsent) "false" else "true")
         }
     }
 

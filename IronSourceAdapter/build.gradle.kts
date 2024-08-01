@@ -93,7 +93,7 @@ dependencies {
     "candidateImplementation"("com.chartboost:chartboost-mediation-sdk:5.0.0")
 
     // Partner SDK
-    implementation("com.ironsource.sdk:mediationsdk:8.1.0")
+    implementation("com.ironsource.sdk:mediationsdk:8.2.0")
     implementation("com.google.android.gms:play-services-appset:16.0.2")
     implementation("com.google.android.gms:play-services-ads-identifier:18.0.1")
     implementation("com.google.android.gms:play-services-basement:18.1.0")

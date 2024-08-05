@@ -21,8 +21,8 @@ import com.chartboost.chartboostmediationsdk.domain.PartnerAdapter
 import com.chartboost.chartboostmediationsdk.domain.PartnerAdapterConfiguration
 import com.chartboost.chartboostmediationsdk.domain.PartnerConfiguration
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
-import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_STARTED
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_FAILED
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.CUSTOM
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_CLICK
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_DISMISS
@@ -203,9 +203,9 @@ class IronSourceAdapter : PartnerAdapter {
         context: Context,
         request: PartnerAdPreBidRequest,
     ): Result<Map<String, String>> {
-        PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
-        PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
-        return Result.success(emptyMap())
+        val token = IronSource.getISDemandOnlyBiddingData(context) ?: ""
+        PartnerLogController.log(if (token.isNotEmpty()) BIDDER_INFO_FETCH_SUCCEEDED else BIDDER_INFO_FETCH_FAILED)
+        return Result.success(mapOf("token" to token))
     }
 
     /**
@@ -363,7 +363,12 @@ class IronSourceAdapter : PartnerAdapter {
                     listener = listener,
                 )
             )
-            IronSource.loadISDemandOnlyInterstitial(activity, request.partnerPlacement)
+
+            if (request.adm.isNullOrEmpty()) {
+                IronSource.loadISDemandOnlyInterstitial(activity, request.partnerPlacement)
+            } else {
+                IronSource.loadISDemandOnlyInterstitialWithAdm(activity, request.partnerPlacement, request.adm)
+            }
         }
     }
 
@@ -407,7 +412,12 @@ class IronSourceAdapter : PartnerAdapter {
                     listener = listener,
                 )
             )
-            IronSource.loadISDemandOnlyRewardedVideo(activity, request.partnerPlacement)
+
+            if (request.adm.isNullOrEmpty()) {
+                IronSource.loadISDemandOnlyRewardedVideo(activity, request.partnerPlacement)
+            } else {
+                IronSource.loadISDemandOnlyRewardedVideoWithAdm(activity, request.partnerPlacement, request.adm)
+            }
         }
     }
 

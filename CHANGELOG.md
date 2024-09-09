@@ -3,10 +3,18 @@
 Note the first digit of every adapter version corresponds to the major version of the Chartboost Mediation SDK compatible with that adapter. 
 Adapters are compatible with any Chartboost Mediation SDK version within that major version.
 
+All official releases can be found on this repository's [releases page](https://github.com/ChartBoost/chartboost-mediation-android-adapter-ironsource/releases).
+
 ### 5.8.3.0.0.0
 - This version of the adapter has been certified with ironSource SDK 8.3.0.
 
+### 4.8.3.0.0.0
+- This version of the adapter has been certified with ironSource SDK 8.3.0.
+
 ### 5.8.2.1.0.0
+- This version of the adapter has been certified with ironSource SDK 8.2.1.
+
+### 4.8.2.1.0.0
 - This version of the adapter has been certified with ironSource SDK 8.2.1.
 
 ### 5.8.2.0.0.0

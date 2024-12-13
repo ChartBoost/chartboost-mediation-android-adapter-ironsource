@@ -37,11 +37,11 @@ repositories {
 
 android {
     namespace = "com.chartboost.mediation.ironsourceadapter"
-    compileSdk = 34
+    compileSdk = 33
 
     defaultConfig {
         minSdk = 21
-        targetSdk = 34
+        targetSdk = 33
         // If you touch the following line, don't forget to update scripts/get_rc_version.zsh
         android.defaultConfig.versionName = System.getenv("VERSION_OVERRIDE") ?: "5.8.3.0.0.0"
 

@@ -43,7 +43,7 @@ android {
         minSdk = 21
         targetSdk = 34
         // If you touch the following line, don't forget to update scripts/get_rc_version.zsh
-        android.defaultConfig.versionName = System.getenv("VERSION_OVERRIDE") ?: "5.8.5.0.0.0"
+        android.defaultConfig.versionName = System.getenv("VERSION_OVERRIDE") ?: "5.8.10.0.0"
 
         buildConfigField("String", "CHARTBOOST_MEDIATION_IRONSOURCE_ADAPTER_VERSION", "\"${android.defaultConfig.versionName}\"")
 
@@ -93,7 +93,7 @@ dependencies {
     "candidateImplementation"("com.chartboost:chartboost-mediation-sdk:5.0.0")
 
     // Partner SDK
-    implementation("com.ironsource.sdk:mediationsdk:8.5.0")
+    implementation("com.ironsource.sdk:mediationsdk:8.10.0")
     implementation("com.google.android.gms:play-services-appset:16.0.2")
     implementation("com.google.android.gms:play-services-ads-identifier:18.0.1")
     implementation("com.google.android.gms:play-services-basement:18.1.0")

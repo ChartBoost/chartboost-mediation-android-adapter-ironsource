@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 Chartboost, Inc.
+ * Copyright 2024-2026 Chartboost, Inc.
  * 
  * Use of this source code is governed by an MIT-style
  * license that can be found in the LICENSE file.
@@ -8,7 +8,7 @@
 package com.chartboost.mediation.ironsourceadapter
 
 import com.chartboost.chartboostmediationsdk.domain.PartnerAdapterConfiguration
-import com.ironsource.mediationsdk.utils.IronSourceUtils
+import com.unity3d.mediation.LevelPlay
 
 object IronSourceAdapterConfiguration : PartnerAdapterConfiguration {
     /**
@@ -24,7 +24,7 @@ object IronSourceAdapterConfiguration : PartnerAdapterConfiguration {
     /**
      * The version of the partner SDK.
      */
-    override val partnerSdkVersion: String = IronSourceUtils.getSDKVersion()
+    override val partnerSdkVersion: String = LevelPlay.getSdkVersion()
 
     /**
      * The partner adapter version.

@@ -51,7 +51,6 @@ import com.chartboost.core.consent.ConsentManagementPlatform
 import com.chartboost.core.consent.ConsentValue
 import com.chartboost.core.consent.ConsentValues
 import com.ironsource.mediationsdk.IronSource
-import com.ironsource.mediationsdk.IronSource.AD_UNIT
 import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyInterstitialListener
 import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyRewardedVideoListener
 import com.ironsource.mediationsdk.logger.IronSourceError
@@ -68,10 +67,14 @@ import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_IS_LOAD_NO_FILL
 import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_NO_INTERNET_CONNECTION
 import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_RV_INIT_FAILED_TIMEOUT
 import com.ironsource.mediationsdk.logger.IronSourceError.ERROR_RV_LOAD_NO_FILL
+import com.unity3d.mediation.LevelPlay
+import com.unity3d.mediation.LevelPlayConfiguration
+import com.unity3d.mediation.LevelPlayInitError
+import com.unity3d.mediation.LevelPlayInitListener
+import com.unity3d.mediation.LevelPlayInitRequest
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import java.lang.ref.WeakReference
 import kotlin.coroutines.resume
@@ -145,25 +148,41 @@ class IronSourceAdapter : PartnerAdapter {
         PartnerLogController.log(SETUP_STARTED)
 
         return Json.decodeFromJsonElement<String>(
-            (partnerConfiguration.credentials as JsonObject).getValue(APP_KEY_KEY),
+            partnerConfiguration.credentials.getValue(APP_KEY_KEY),
         ).trim()
             .takeIf { it.isNotEmpty() }?.let { appKey ->
-                IronSource.setMediationType("Chartboost")
-                // IronSource leaks this Activity via ContextProvider, but it only ever leaks one
-                // Activity at a time, so this is probably okay.
-                IronSource.initISDemandOnly(
-                    context,
-                    appKey,
-                    AD_UNIT.INTERSTITIAL,
-                    AD_UNIT.REWARDED_VIDEO,
-                )
+                suspendCancellableCoroutine { continuation ->
+                    IronSource.setMediationType("Chartboost")
+                    // IronSource leaks this Activity via ContextProvider, but it only ever leaks one
+                    // Activity at a time, so this is probably okay.
 
-                // This router is required to forward the singleton callbacks to the instance ones.
-                IronSource.setISDemandOnlyInterstitialListener(router)
-                IronSource.setISDemandOnlyRewardedVideoListener(router)
+                    val initRequest = LevelPlayInitRequest.Builder(appKey)
+                        .build()
 
-                PartnerLogController.log(SETUP_SUCCEEDED)
-                Result.success(emptyMap())
+                    val initListener: LevelPlayInitListener = object : LevelPlayInitListener {
+                        override fun onInitFailed(error: LevelPlayInitError) {
+                            PartnerLogController.log(SETUP_FAILED, "Code: ${error.errorCode}, Message: ${error.errorMessage}")
+                            if (continuation.isActive) {
+                                continuation.resume(
+                                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown))
+                                )
+                            }
+                        }
+
+                        override fun onInitSuccess(configuration: LevelPlayConfiguration) {
+                            PartnerLogController.log(SETUP_SUCCEEDED)
+                            if (continuation.isActive) {
+                                continuation.resume(Result.success(emptyMap()))
+                            }
+                        }
+                    }
+
+                    // This router is required to forward the singleton callbacks to the instance ones.
+                    IronSource.setISDemandOnlyInterstitialListener(router)
+                    IronSource.setISDemandOnlyRewardedVideoListener(router)
+
+                    LevelPlay.init(context, initRequest, initListener)
+                }
             } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Missing the app key.")
             Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.InvalidCredentials))
@@ -188,7 +207,7 @@ class IronSourceAdapter : PartnerAdapter {
             },
         )
 
-        IronSource.setMetaData("is_child_directed", if (isUserUnderage) "true" else "false")
+        LevelPlay.setMetaData("is_child_directed", if (isUserUnderage) "true" else "false")
     }
 
     /**
@@ -302,7 +321,7 @@ class IronSourceAdapter : PartnerAdapter {
                 },
             )
 
-            IronSource.setConsent(it == ConsentValues.GRANTED)
+            LevelPlay.setConsent(it == ConsentValues.GRANTED)
         }
 
         val hasGrantedUspConsent =
@@ -319,7 +338,7 @@ class IronSourceAdapter : PartnerAdapter {
                 },
             )
 
-            IronSource.setMetaData(DO_NOT_SELL_KEY, if (hasGrantedUspConsent) "false" else "true")
+            LevelPlay.setMetaData(DO_NOT_SELL_KEY, if (hasGrantedUspConsent) "false" else "true")
         }
     }
 

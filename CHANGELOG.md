@@ -14,6 +14,9 @@ All official releases can be found on this repository's [releases page](https://
 ### 5.9.1.0.0.0
 - This version of the adapter has been certified with ironSource SDK 9.1.0.
 
+### 5.9.0.0.0.0
+- This version of the adapter has been certified with ironSource SDK 9.0.0.
+
 ### 5.8.11.1.0
 - This version of the adapter has been certified with ironSource SDK 8.11.1.
 

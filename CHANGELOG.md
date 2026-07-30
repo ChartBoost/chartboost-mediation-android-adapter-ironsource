@@ -11,6 +11,9 @@ All official releases can be found on this repository's [releases page](https://
 
 ## Mediation 5
 
+### 5.9.2.0.0.1
+- Fix fullscreen ad queue loads failing with a non-`Activity` context by resolving ironSource's currently resumed `Activity` at load.
+
 ### 5.9.2.0.0.0
 - This version of the adapter has been certified with ironSource SDK 9.2.0.
 

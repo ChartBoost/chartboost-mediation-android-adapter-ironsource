@@ -50,6 +50,7 @@ import com.chartboost.core.consent.ConsentKeys
 import com.chartboost.core.consent.ConsentManagementPlatform
 import com.chartboost.core.consent.ConsentValue
 import com.chartboost.core.consent.ConsentValues
+import com.ironsource.environment.ContextProvider
 import com.ironsource.mediationsdk.IronSource
 import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyInterstitialListener
 import com.ironsource.mediationsdk.demandOnly.ISDemandOnlyRewardedVideoListener
@@ -153,8 +154,6 @@ class IronSourceAdapter : PartnerAdapter {
             .takeIf { it.isNotEmpty() }?.let { appKey ->
                 suspendCancellableCoroutine { continuation ->
                     IronSource.setMediationType("Chartboost")
-                    // IronSource leaks this Activity via ContextProvider, but it only ever leaks one
-                    // Activity at a time, so this is probably okay.
 
                     val initRequest = LevelPlayInitRequest.Builder(appKey)
                         .build()
@@ -243,14 +242,23 @@ class IronSourceAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         PartnerLogController.log(LOAD_STARTED)
 
-        return (context as? Activity)?.let { activity ->
+        // IronSource requires an Activity at load. When the caller supplies a non-Activity
+        // context (e.g. fullscreen ad queues, which retain only the application context), fall
+        // back to the Activity ironSource itself tracks as currently resumed. ContextProvider
+        // never clears its reference, so guard against a finishing/destroyed Activity.
+        val activity =
+            context as? Activity
+                ?: ContextProvider.getInstance().currentActiveActivity
+                    ?.takeIf { !it.isFinishing && !it.isDestroyed }
+
+        return activity?.let {
             when (request.format) {
                 PartnerAdFormats.INTERSTITIAL -> {
-                    loadInterstitialAd(activity, request, partnerAdListener)
+                    loadInterstitialAd(it, request, partnerAdListener)
                 }
 
                 PartnerAdFormats.REWARDED -> {
-                    loadRewardedAd(activity, request, partnerAdListener)
+                    loadRewardedAd(it, request, partnerAdListener)
                 }
 
                 else -> {
@@ -259,7 +267,7 @@ class IronSourceAdapter : PartnerAdapter {
                 }
             }
         } ?: run {
-            PartnerLogController.log(LOAD_FAILED, "Activity context is required.")
+            PartnerLogController.log(LOAD_FAILED, "No Activity available. IronSource requires a foreground Activity to load ads.")
             Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.ActivityNotFound))
         }
     }

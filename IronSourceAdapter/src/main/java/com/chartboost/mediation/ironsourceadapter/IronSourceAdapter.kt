@@ -242,7 +242,7 @@ class IronSourceAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         PartnerLogController.log(LOAD_STARTED)
 
-        // ironSource requires an Activity at load. When the caller supplies a non-Activity
+        // IronSource requires an Activity at load. When the caller supplies a non-Activity
         // context (e.g. fullscreen ad queues, which retain only the application context), fall
         // back to the Activity ironSource itself tracks as currently resumed. ContextProvider
         // never clears its reference, so guard against a finishing/destroyed Activity.

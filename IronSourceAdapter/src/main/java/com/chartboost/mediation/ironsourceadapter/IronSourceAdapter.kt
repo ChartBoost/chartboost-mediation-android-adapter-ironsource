@@ -267,7 +267,7 @@ class IronSourceAdapter : PartnerAdapter {
                 }
             }
         } ?: run {
-            PartnerLogController.log(LOAD_FAILED, "No Activity available. ironSource requires a foreground Activity to load ads.")
+            PartnerLogController.log(LOAD_FAILED, "No Activity available. IronSource requires a foreground Activity to load ads.")
             Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.ActivityNotFound))
         }
     }
